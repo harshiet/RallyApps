@@ -10,6 +10,7 @@
     <script type="text/javascript" src="https://rally1.rallydev.com/apps/1.32/sdk.js"></script>
      <script type="text/javascript">
 		var rallyDataSource;
+		var ds = {};
 		function projectChanged(dropdown, eventArgs) {
            clearDiv('bDiv');
 		   var selectedProject = eventArgs.value;
@@ -17,37 +18,61 @@
                                                               rally.sdk.util.Ref.getOidFromRef(selectedProject),
                                                               '__PROJECT_SCOPING_UP__',
                                                              '__PROJECT_SCOPING_DOWN__');
+			ds = {};															 
 		   rallyDataSource.getRallyObject(selectedProject, onGetComplete);
 		}
 		function onGetComplete(obj) {
           var type = rally.sdk.util.Ref.getTypeFromRef(obj); 
 		  if(type=="project"){
-			var releases = obj.Releases;
-			for(var i=0;i<releases.length;i++){
-				rallyDataSource.getRallyObject(releases[i],onGetComplete);
+			var iterations = obj.Iterations;
+			for(var i=0;i<iterations.length;i++){
+				rallyDataSource.getRallyObject(iterations[i],onGetComplete);
 			}
 		  }else{
-			if(type=="release"){
-				updateDiv('bDiv',obj.Name);
-				findAcceptedUserStoriesForRelease(obj);
+			if(type=="iteration"){
+				//updateDiv('bDiv',obj.Name);
+				findAcceptedUserStoriesForIteration(obj);
 			}
 		  }
          }
-
-		 function findAcceptedUserStoriesForRelease(release){
+		 function findAcceptedUserStoriesForIteration(iteration){
 			var queryConfig = {
 				type : 'hierarchicalrequirement',
 				key : 'stories',
-				query : '((ScheduleState = Accepted) AND (Release.ObjectID = "' + release.ObjectID + '"))',
-				fetch : 'Name,AcceptedDate,TaskActualTotal,TaskEstimateTotal,Iteration,Name,ObjectID',
+				query : '((ScheduleState = Accepted) AND (Iteration.ObjectID = "' + iteration.ObjectID + '"))',
+				fetch : 'Name,AcceptedDate,TaskActualTotal,TaskEstimateTotal,Iteration,Name,ObjectID,Release,Name',
 				pagesize:'2000'
 			};
-			rallyDataSource.findAll(queryConfig, showUserStories);
+			rallyDataSource.findAll(queryConfig, processUserStoriesForIteration);
 		 }
-		 function showUserStories(results){
+		 function processUserStoriesForIteration(results){
+			
 			for (i = 0; i < results.stories.length; i++) {
 				var story = results.stories[i];
-				updateDiv('bDiv',i+story.Iteration.Name + "," + story.TaskActualTotal);
+				var release=story.Release;
+				var iteration = story.Iteration;
+				if (!ds[release.ObjectID]) {
+					ds[release.ObjectID]={};
+					ds[release.ObjectID]['releaseName'] = release.Name;
+				}
+				if (!ds[release.ObjectID][iteration.ObjectID]) {
+					ds[release.ObjectID][iteration.ObjectID] = {};
+					ds[release.ObjectID][iteration.ObjectID]['iterationName'] = iteration.Name;	
+//					dsIter=dsRel[iteration.ObjectID];
+				}
+//				dsIter['taskEstimate'] = parseFloat(dsIter['taskEstimate']) + story.TaskEstimateTotal;	
+//				dsIter['taskActual'] = parseFloat(dsIter['taskActual']) + story.TaskActualTotal;	
+			}
+
+			for(rel in ds){
+				var dsRel = ds[rel];
+				updateDiv('bDiv',dsRel['releaseName']);	
+				for(iter in dsRel){
+					var dsIter = dsRel[iter];
+					updateDiv('bDiv',dsIter['iterationName']);	
+//					updateDiv('bDiv',dsIter['iterationName'] + ',' + dsIter['taskEstimate'] + ',' + dsIter['taskActual']);	
+				}
+				updateDiv('bDiv','______________________________________________________________________');	
 			}
  		 }
        function onLoad() {
@@ -73,7 +98,7 @@
 			var oDiv = document.getElementById(divId);
 			 oDiv.innerHTML += text+ "<br>";
     	}
-    
+
     </script>
  </head>
    <body>
