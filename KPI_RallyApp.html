@@ -1,0 +1,42 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" 
+     "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html>
+<head>
+<meta name="Name" content="App Example: Open Defects List" />
+<title>Open Defects List</title>
+<script type="text/javascript" src="/apps/1.26/sdk.js"></script>
+<script type="text/javascript">
+	function openDefectsExample() {
+		var showOpenDefects = function(results) {
+			var defect;
+			var aDiv = document.getElementById("aDiv");
+			aDiv.innerHTML = '<b>Open Defects</b><br/>t_$ta_$tag';
+			aDiv.innerHTML += ' Priority - Name_$t_$ta_$tag_$tag';
+			for ( var i = 0; i < results.defects.length; i++) {
+				defect = results.defects[i];
+				aDiv.innerHTML += defect.Actuals + ' - ' + defect.Name
+						+ '_$t_$ta_$tag_$tag_$ta';
+			}
+		};
+
+		queryConfig = {
+			type : 'task',
+			key : 'defects',
+			query : '(State = Defined)',
+			fetch : 'Name,Actuals'
+		};
+
+		var rallyDataSource;
+		rallyDataSource = new rally.sdk.data.RallyDataSource(
+				'__WORKSPACE_OID__', '__PROJECT_OID__',
+				'__PROJECT_SCOPING_UP__', '__PROJECT_SCOPING_DOWN__');
+		rallyDataSource.findAll(queryConfig, showOpenDefects);
+	}
+
+	ra
+</script>
+</head>
+<body>
+	<div id="aDiv"></div>
+</body>
+</html>
