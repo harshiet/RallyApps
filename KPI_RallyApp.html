@@ -9,13 +9,17 @@
  
     <script type="text/javascript" src="https://rally1.rallydev.com/apps/1.32/sdk.js"></script>
      <script type="text/javascript">
-	   var rallyDataSource;
-       function projectChanged(dropdown, eventArgs) {
+		var rallyDataSource;
+		function projectChanged(dropdown, eventArgs) {
            clearDiv('bDiv');
 		   var selectedProject = eventArgs.value;
+		   rallyDataSource = new rally.sdk.data.RallyDataSource('__WORKSPACE_OID__',
+                                                              rally.sdk.util.Ref.getOidFromRef(selectedProject),
+                                                              '__PROJECT_SCOPING_UP__',
+                                                             '__PROJECT_SCOPING_DOWN__');
 		   rallyDataSource.getRallyObject(selectedProject, onGetComplete);
-        }
-	     function onGetComplete(obj) {
+		}
+		function onGetComplete(obj) {
           var type = rally.sdk.util.Ref.getTypeFromRef(obj); 
 		  if(type=="project"){
 			var releases = obj.Releases;
@@ -24,13 +28,28 @@
 			}
 		  }else{
 			if(type=="release"){
-				findTasksForRelease(obj);
+				updateDiv('bDiv',obj.Name);
+				findAcceptedUserStoriesForRelease(obj);
 			}
 		  }
          }
 
-		 function findTasksForRelease(release){
+		 function findAcceptedUserStoriesForRelease(release){
+			var queryConfig = {
+				type : 'hierarchicalrequirement',
+				key : 'stories',
+				query : '((ScheduleState = Accepted) AND (Release.ObjectID = "' + release.ObjectID + '"))',
+				fetch : 'Name,AcceptedDate,TaskActualTotal,TaskEstimateTotal,Iteration,Name,ObjectID',
+				pagesize:'2000'
+			};
+			rallyDataSource.findAll(queryConfig, showUserStories);
 		 }
+		 function showUserStories(results){
+			for (i = 0; i < results.stories.length; i++) {
+				var story = results.stories[i];
+				updateDiv('bDiv',i+story.Iteration.Name + "," + story.TaskActualTotal);
+			}
+ 		 }
        function onLoad() {
            rallyDataSource = new rally.sdk.data.RallyDataSource('__WORKSPACE_OID__',
                                                               '__PROJECT_OID__',
@@ -44,7 +63,7 @@
               projectDropdown.display("aDiv", projectChanged);
         }
  
-       rally.addOnLoad(onLoad);
+		rally.addOnLoad(onLoad);
  		function clearDiv(divId){
 			var oDiv = document.getElementById(divId);
 			 oDiv.innerHTML = '';
@@ -52,7 +71,7 @@
 
 		function updateDiv(divId,text){
 			var oDiv = document.getElementById(divId);
-			 oDiv.innerHTML += text;
+			 oDiv.innerHTML += text+ "<br>";
     	}
     
     </script>
