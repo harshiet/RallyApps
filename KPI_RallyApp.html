@@ -1,51 +1,64 @@
-<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
-     "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
-<html>
-<head>
-<meta name="Name" content="App Example: Placeholder Query" />
-<title>Placeholder Query Example</title>
-<script type="text/javascript"
-	src="https://rally1.rallydev.com/apps/1.32/sdk.js"></script>
-<script type="text/javascript">
-	function placeholderQueryExample() {
-		var aDiv = document.getElementById('aDiv');
-		aDiv.innerHTML = '<b>correlatedQueryExample</b><br>$t_$ta_$ta';
-
-		var showDefectsByOwner = function(results) {
-			for (i = 0; i < results.iterations.length; i++) {
-				var queryConfig = {
-					type : 'task',
-					key : 'tasks',
-					query : '(Iteration.ObjectID = '
-							+ results.iterations[i].ObjectID + ')',
-					fetch : 'Name,Iteration,Name'
-				};
-				rallyDataSource.find(queryConfig, showTasks);
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+ <!-- Copyright (c) 2011 Rally Software Development Corp. All rights reserved -->
+ <html>
+ <head>
+     <title>Object Dropdown Example</title>
+     <meta name="Name" content="Component Example: Object Drop-down" />
+     <meta name="Version" content="1.26" />
+     <meta name="Vendor" content="Rally Software" />
+ 
+    <script type="text/javascript" src="https://rally1.rallydev.com/apps/1.32/sdk.js"></script>
+     <script type="text/javascript">
+	   var rallyDataSource;
+       function projectChanged(dropdown, eventArgs) {
+           clearDiv('bDiv');
+		   var selectedProject = eventArgs.value;
+		   rallyDataSource.getRallyObject(selectedProject, onGetComplete);
+        }
+	     function onGetComplete(obj) {
+          var type = rally.sdk.util.Ref.getTypeFromRef(obj); 
+		  if(type=="project"){
+			var releases = obj.Releases;
+			for(var i=0;i<releases.length;i++){
+				rallyDataSource.getRallyObject(releases[i],onGetComplete);
 			}
-		};
-		var showTasks = function(results) {
-			for (i = 0; i < results.tasks.length; i++) {
-				aDiv.innerHTML += "&nbsp;" + results.tasks[i].Iteration.Name + "," + results.tasks[i].Name + "<br>";
+		  }else{
+			if(type=="release"){
+				findTasksForRelease(obj);
 			}
- 		};
-		var queryConfig = {
-			type : 'iteration',
-			key : 'iterations',
-			fetch : 'ObjectID'
-		};
+		  }
+         }
 
-		var rallyDataSource;
-		rallyDataSource = new rally.sdk.data.RallyDataSource(
-				'__WORKSPACE_OID__', '__PROJECT_OID__',
-				'__PROJECT_SCOPING_UP__', '__PROJECT_SCOPING_DOWN__');
-		rallyDataSource.find(queryConfig, showDefectsByOwner);
-	}
+		 function findTasksForRelease(release){
+		 }
+       function onLoad() {
+           rallyDataSource = new rally.sdk.data.RallyDataSource('__WORKSPACE_OID__',
+                                                              '__PROJECT_OID__',
+                                                              '__PROJECT_SCOPING_UP__',
+                                                             '__PROJECT_SCOPING_DOWN__');
+           var config = {
+                 type : "Project",
+                 attribute: "Name"
+              };
+           var projectDropdown = new rally.sdk.ui.ObjectDropdown(config, rallyDataSource);
+              projectDropdown.display("aDiv", projectChanged);
+        }
+ 
+       rally.addOnLoad(onLoad);
+ 		function clearDiv(divId){
+			var oDiv = document.getElementById(divId);
+			 oDiv.innerHTML = '';
+    	}
 
-	rally.addOnLoad(placeholderQueryExample);
-</script>
-
-</head>
-<body>
-	<div id="aDiv"></div>
-</body>
-</html>
+		function updateDiv(divId,text){
+			var oDiv = document.getElementById(divId);
+			 oDiv.innerHTML += text;
+    	}
+    
+    </script>
+ </head>
+   <body>
+     <div id="aDiv"></div>
+	 <div id="bDiv"></div>
+ </body>
+ </html>
