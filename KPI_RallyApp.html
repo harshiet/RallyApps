@@ -1,73 +1,51 @@
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
-"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+     "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
 <html>
 <head>
-<title>User Stories By Iteration Example</title>
+<meta name="Name" content="App Example: Placeholder Query" />
+<title>Placeholder Query Example</title>
 <script type="text/javascript"
 	src="https://rally1.rallydev.com/apps/1.32/sdk.js"></script>
 <script type="text/javascript">
-	var rallyDataSource = null;
-	var iterDropdown = null;
-	vartable = null;
+	function placeholderQueryExample() {
+		var aDiv = document.getElementById('aDiv');
+		aDiv.innerHTML = '<b>correlatedQueryExample</b><br>$t_$ta_$ta';
 
-	function showUserStoriesTable(results) {
-		if (table) {
-			table.destroy();
-		}
-
-		var rankIx = 1;
-		for ( var i = 0; i < results.stories.length; i++, rankIx++) {
-			results.stories[i].Ranking = rankIx; // to get 1 through N rankings...
-		}
-
-		var tableConfig = {
-			columnKeys : [ 'Ranking', 'FormattedID', 'Name' ],
-			columnHeaders : [ 'Ranking', 'FormattedID', 'Name' ],
-			columnWidths : [ '60px', '80px', '360px' ]
+		var showDefectsByOwner = function(results) {
+			for (i = 0; i < results.iterations.length; i++) {
+				var queryConfig = {
+					type : 'task',
+					key : 'tasks',
+					query : '(Iteration.ObjectID = '
+							+ results.iterations[i].ObjectID + ')',
+					fetch : 'Name,Iteration,Name'
+				};
+				rallyDataSource.find(queryConfig, showTasks);
+			}
 		};
-		table = new rally.sdk.ui.Table(tableConfig);
-		table.addRows(results.stories);
-		table.display(document.getElementById('stories'));
-	}
-
-	function onIterationSelected() {
-		document.getElementById('stories').innerHTML = "";
+		var showTasks = function(results) {
+			for (i = 0; i < results.tasks.length; i++) {
+				aDiv.innerHTML += "&nbsp;" + results.tasks[i].Iteration.Name + "," + results.tasks[i].Name + "<br>";
+			}
+ 		};
 		var queryConfig = {
-			key : 'stories',
-			type : 'hierarchicalrequirement',
-			fetch : 'Rank,FormattedID,Name',
-			query : '(Iteration.Name = "' + iterDropdown.getSelectedName()
-					+ '")',
-			order : 'Rank'
+			type : 'iteration',
+			key : 'iterations',
+			fetch : 'ObjectID'
 		};
-		rallyDataSource.findAll(queryConfig, showUserStoriesTable);
-	}
 
-	function onLoad() {
+		var rallyDataSource;
 		rallyDataSource = new rally.sdk.data.RallyDataSource(
-				"872858354", "9177325413",
-				"__PROJECT_SCOPING_UP__", "__PROJECT_SCOPING_DOWN__")
-		var iterConfig = {
-			label : ""
-		};
-		iterDropdown = new rally.sdk.ui.IterationDropdown(iterConfig,
-				rallyDataSource);
-		iterDropdown.display(document.getElementById("iterationDiv"),
-				onIterationSelected);
+				'__WORKSPACE_OID__', '__PROJECT_OID__',
+				'__PROJECT_SCOPING_UP__', '__PROJECT_SCOPING_DOWN__');
+		rallyDataSource.find(queryConfig, showDefectsByOwner);
 	}
 
-	rally.addOnLoad(onLoad);
+	rally.addOnLoad(placeholderQueryExample);
 </script>
 
 </head>
 <body>
-	<div>
-		<div style="margin-left: 20px; margin-bottom: 5px; font-weight: bold;">Select
-			Iteration</div>
-		<div id="iterationDiv"></div>
-	</div>
-	<br />
-	<br />
-	<div id="stories"></div>
+	<div id="aDiv"></div>
 </body>
 </html>
