@@ -10,7 +10,8 @@
     <script type="text/javascript" src="https://rally1.rallydev.com/apps/1.32/sdk.js"></script>
      <script type="text/javascript">
 		var rallyDataSource;
-		var ds = {};
+		var table = null;
+		
 		function projectChanged(dropdown, eventArgs) {
            clearDiv('bDiv');
 		   var selectedProject = eventArgs.value;
@@ -18,63 +19,71 @@
                                                               rally.sdk.util.Ref.getOidFromRef(selectedProject),
                                                               '__PROJECT_SCOPING_UP__',
                                                              '__PROJECT_SCOPING_DOWN__');
-			ds = {};															 
-		   rallyDataSource.getRallyObject(selectedProject, onGetComplete);
-		}
-		function onGetComplete(obj) {
-          var type = rally.sdk.util.Ref.getTypeFromRef(obj); 
-		  if(type=="project"){
-			var iterations = obj.Iterations;
-			for(var i=0;i<iterations.length;i++){
-				rallyDataSource.getRallyObject(iterations[i],onGetComplete);
+			if(table){
+				table.destroy();
 			}
-		  }else{
-			if(type=="iteration"){
-				//updateDiv('bDiv',obj.Name);
-				findAcceptedUserStoriesForIteration(obj);
-			}
-		  }
+			findAcceptedUserStories();
          }
-		 function findAcceptedUserStoriesForIteration(iteration){
+		 function findAcceptedUserStories(){
 			var queryConfig = {
 				type : 'hierarchicalrequirement',
 				key : 'stories',
-				query : '((ScheduleState = Accepted) AND (Iteration.ObjectID = "' + iteration.ObjectID + '"))',
-				fetch : 'Name,AcceptedDate,TaskActualTotal,TaskEstimateTotal,Iteration,Name,ObjectID,Release,Name',
-				pagesize:'2000'
+				query : '((ScheduleState = Accepted) OR (ScheduleState = Closed))',
+				fetch : 'Name,AcceptedDate,TaskActualTotal,TaskEstimateTotal,Iteration,Name,ObjectID,Release,Name,ObjectID',
+				pagesize:'20000',
+				order: 'AcceptedDate desc'
+
 			};
-			rallyDataSource.findAll(queryConfig, processUserStoriesForIteration);
+			rallyDataSource.findAll(queryConfig, processStories);
 		 }
-		 function processUserStoriesForIteration(results){
-			
+	     function processStories(results){
+			var ds = {};
 			for (i = 0; i < results.stories.length; i++) {
 				var story = results.stories[i];
-				var release=story.Release;
-				var iteration = story.Iteration;
-				if (!ds[release.ObjectID]) {
-					ds[release.ObjectID]={};
-					ds[release.ObjectID]['releaseName'] = release.Name;
+				var releaseName="No Release Assigned";
+				if(story.Release){
+					releaseName = story.Release.Name;
 				}
-				if (!ds[release.ObjectID][iteration.ObjectID]) {
-					ds[release.ObjectID][iteration.ObjectID] = {};
-					ds[release.ObjectID][iteration.ObjectID]['iterationName'] = iteration.Name;	
-//					dsIter=dsRel[iteration.ObjectID];
+				var iterationName = "No Iteration Assigned";
+				if(story.Iteration){
+					iterationName = story.Iteration.Name;
 				}
-//				dsIter['taskEstimate'] = parseFloat(dsIter['taskEstimate']) + story.TaskEstimateTotal;	
-//				dsIter['taskActual'] = parseFloat(dsIter['taskActual']) + story.TaskActualTotal;	
+				if (!ds[releaseName]) {
+					ds[releaseName]={};
+				}
+				if (!ds[releaseName][iterationName]) {
+					ds[releaseName][iterationName] = {};
+					dsIter=ds[releaseName][iterationName];
+					dsIter['taskEstimate'] = 0;
+					dsIter['taskActual'] = 0;
+				}
+				dsIter=ds[releaseName][iterationName];
+				dsIter['taskEstimate'] +=  story.TaskEstimateTotal;	
+				dsIter['taskActual'] += story.TaskActualTotal;	
 			}
+			display(ds);
+		  }
 
+		function display(ds){
+			 var tableDiv = document.getElementById("tableDiv");
+			 var tableConfig = { columns: 
+             [{key: 'Release', header: 'Release'},
+			 {key: 'Iteration', header: 'Iteration'}, 
+             {key: 'TaskEstimateTotal', header: 'Estimated Effort',width:100},
+             {key: 'TaskActualTotal', header: 'ActualEffort',width:100},
+			 ],
+			 width:700};
+			table = new rally.sdk.ui.Table(tableConfig );
 			for(rel in ds){
 				var dsRel = ds[rel];
-				updateDiv('bDiv',dsRel['releaseName']);	
 				for(iter in dsRel){
 					var dsIter = dsRel[iter];
-					updateDiv('bDiv',dsIter['iterationName']);	
-//					updateDiv('bDiv',dsIter['iterationName'] + ',' + dsIter['taskEstimate'] + ',' + dsIter['taskActual']);	
+					table.addRow({'Release' : rel, 'Iteration' : iter, 'TaskEstimateTotal' : dsIter['taskEstimate'], 'TaskActualTotal' : dsIter['taskActual']});
 				}
-				updateDiv('bDiv','______________________________________________________________________');	
 			}
- 		 }
+			
+			table.display(tableDiv);
+		}
        function onLoad() {
            rallyDataSource = new rally.sdk.data.RallyDataSource('__WORKSPACE_OID__',
                                                               '__PROJECT_OID__',
@@ -89,6 +98,7 @@
         }
  
 		rally.addOnLoad(onLoad);
+
  		function clearDiv(divId){
 			var oDiv = document.getElementById(divId);
 			 oDiv.innerHTML = '';
@@ -104,5 +114,6 @@
    <body>
      <div id="aDiv"></div>
 	 <div id="bDiv"></div>
+	 <div id="tableDiv"></div>
  </body>
  </html>
