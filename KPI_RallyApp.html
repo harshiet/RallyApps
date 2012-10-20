@@ -3,9 +3,9 @@
  <html>
  <head>
      <title>Object Dropdown Example</title>
-     <meta name="Name" content="Component Example: Object Drop-down" />
-     <meta name="Version" content="1.26" />
-     <meta name="Vendor" content="Rally Software" />
+     <meta name="Name" content="KPIs" />
+     <meta name="Version" content="1.32" />
+     <meta name="Vendor" content="CEB" />
  
     <script type="text/javascript" src="https://rally1.rallydev.com/apps/1.32/sdk.js"></script>
      <script type="text/javascript">
@@ -42,7 +42,8 @@
 			var selectedRelease = eventArgs.value;
 			rallyDataSource.getRallyObject(selectedRelease,function(obj){
 				objRelease = new LineItem(obj.Name);
-				objRelease.startDate = obj.StartDate;
+				objRelease.startDate = formatDate(obj.ReleaseStartDate);
+				objRelease.endDate = formatDate(obj.ReleaseDate);
 				findUserStoriesForRelease(objRelease);
 			}); 
         }
@@ -65,14 +66,20 @@
 				var story = results.stories[i];
 				var iterationName = "No Iteration Assigned";
 				var iterationObjectID = "xxxxxxxxxxxxxxxxxxx";
+				var iterationStartDate = "";
+				var iterationEndDate = "";
 				if(story.Iteration){
 					iterationName = story.Iteration.Name;
 					iterationObjectID = story.Iteration.ObjectID;
+					iterationStartDate = story.Iteration.StartDate;
+					iterationEndDate = story.Iteration.EndDate;
 				}
 				var iteration = objRelease.iterations[iterationObjectID];
 
 				if (!iteration) {
 					iteration = new LineItem(iterationName);
+					iteration.startDate = formatDate(iterationStartDate);
+					iteration.endDate = formatDate(iterationEndDate);
 					objRelease.iterations[iterationObjectID] = iteration;
 				}
 				iteration.estimatedEffort +=  story.TaskEstimateTotal;	
@@ -86,21 +93,21 @@
 		function display(release){
 			 var tableDiv = document.getElementById("tableDiv");
 			 var tableConfig = { columns: 
-             [{key: 'Release', header: 'Release'},
-			 {key: 'StartDate', header: 'Start Date',width:100},
-			 {key: 'EndDate', header: 'End Date',width:100},
-			 {key: 'TaskEstimateTotal', header: 'Estimated Effort',width:100},
-             {key: 'TaskActualTotal', header: 'Actual Effort',width:100},
+             [{key: 'Release', header: 'Release', width:500},
+			 {key: 'StartDate', header: 'Start Date'},
+			 {key: 'EndDate', header: 'End Date'},
+			 {key: 'TaskEstimateTotal', header: 'Estimated Effort'},
+             {key: 'TaskActualTotal', header: 'Actual Effort'},
 			 ],
-			 width:800};
+			 width:1000};
 			table = new rally.sdk.ui.Table(tableConfig );
-			table.addRow({'Release' : bold(release.name),  'StartDate':release.startDate, 'EndDate':release.endDate, 'TaskEstimateTotal' : bold(release.getEstimatedEffort()), 'TaskActualTotal' : bold(release.getActualEffort())});
+			table.addRow({'Release' : bold(release.name),  'StartDate':bold(release.startDate), 'EndDate':bold(release.endDate), 'TaskEstimateTotal' : bold(release.getEstimatedEffort()), 'TaskActualTotal' : bold(release.getActualEffort())});
 			for(key in release.iterations){
 				var iteration = release.iterations[key];
-				table.addRow({'Release' : iteration.name, 'StartDate':iteration.startDate, 'EndDate':iteration.endDate, 'TaskEstimateTotal' : iteration.getEstimatedEffort(), 'TaskActualTotal' : iteration.getActualEffort()});
+				table.addRow({'Release' : padspaces(iteration.name,20), 'StartDate':iteration.startDate, 'EndDate':iteration.endDate, 'TaskEstimateTotal' : iteration.getEstimatedEffort(), 'TaskActualTotal' : iteration.getActualEffort()});
 			}
-			
 			table.display(tableDiv);
+			
 		}
        function onLoad() {
            rallyDataSource = new rally.sdk.data.RallyDataSource('__WORKSPACE_OID__',
@@ -131,6 +138,18 @@
 		}
 		function formatNumber(num){
 			return num.toFixed(0);
+		}
+		function formatDate(date){
+			if(date == ""){
+				return date;
+			}
+			return rally.sdk.util.DateTime.format(date, "dd-MMM-yyyy");
+		}
+		function padspaces(text, numspaces){
+			for(var i=0;i<numspaces;i++){
+				text='&nbsp;'+text;
+			}
+			return text;
 		}
 		rally.addOnLoad(onLoad);
     </script>
