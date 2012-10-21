@@ -19,6 +19,7 @@
 			this.actualEffort = 0;
 			this.startDate='';
 			this.endDate='';
+			this.capacity=0;
 			this.iterations = {};
 			this.getEstimatedEffort = function(){
 				return formatNumber(this.estimatedEffort);
@@ -53,7 +54,7 @@
 				type : 'hierarchicalrequirement',
 				key : 'stories',
 				query : '(((ScheduleState = Accepted) OR (ScheduleState = Closed)) AND (Release.Name = "' + objRelease.name +'"))',
-				fetch : 'Name,AcceptedDate,TaskActualTotal,TaskEstimateTotal,Iteration,Name,ObjectID,StartDate,EndDate,Release,Name,ObjectID,StartDate,ReleaseDate',
+				fetch : 'Name,AcceptedDate,TaskActualTotal,TaskEstimateTotal,Iteration,Name,ObjectID,StartDate,EndDate,UserIterationCapacities,Capacity,Release,Name,ObjectID,StartDate,ReleaseDate',
 				pagesize:'20000',
 				order: 'AcceptedDate desc'
 
@@ -68,11 +69,16 @@
 				var iterationObjectID = "xxxxxxxxxxxxxxxxxxx";
 				var iterationStartDate = "";
 				var iterationEndDate = "";
+				var iterationCapacity=0;
 				if(story.Iteration){
 					iterationName = story.Iteration.Name;
 					iterationObjectID = story.Iteration.ObjectID;
 					iterationStartDate = story.Iteration.StartDate;
 					iterationEndDate = story.Iteration.EndDate;
+					for(x in story.Iteration.UserIterationCapacities){
+						var uCap = story.Iteration.UserIterationCapacities[x];
+						iterationCapacity += uCap.Capacity;
+					}
 				}
 				var iteration = objRelease.iterations[iterationObjectID];
 
@@ -83,9 +89,12 @@
 					objRelease.iterations[iterationObjectID] = iteration;
 				}
 				iteration.estimatedEffort +=  story.TaskEstimateTotal;	
-				iteration.actualEffort += story.TaskActualTotal;	
+				iteration.actualEffort += story.TaskActualTotal;
+				iteration.capacity = iterationCapacity;
 				objRelease.estimatedEffort += story.TaskEstimateTotal;
 				objRelease.actualEffort += story.TaskActualTotal;
+				objRelease.capacity += iterationCapacity;
+				
 			}
 			display(objRelease);
 		  }
@@ -98,13 +107,14 @@
 			 {key: 'EndDate', header: 'End Date'},
 			 {key: 'TaskEstimateTotal', header: 'Estimated Effort'},
              {key: 'TaskActualTotal', header: 'Actual Effort'},
+             {key: 'TeamCapacity', header: 'Team Capacity'},
 			 ],
 			 width:1000};
 			table = new rally.sdk.ui.Table(tableConfig );
-			table.addRow({'Release' : bold(release.name),  'StartDate':bold(release.startDate), 'EndDate':bold(release.endDate), 'TaskEstimateTotal' : bold(release.getEstimatedEffort()), 'TaskActualTotal' : bold(release.getActualEffort())});
+			table.addRow({'Release' : bold(release.name),  'StartDate':bold(release.startDate), 'EndDate':bold(release.endDate), 'TaskEstimateTotal' : bold(release.getEstimatedEffort()), 'TaskActualTotal' : bold(release.getActualEffort()), 'TeamCapacity':release.capacity});
 			for(key in release.iterations){
 				var iteration = release.iterations[key];
-				table.addRow({'Release' : padspaces(iteration.name,20), 'StartDate':iteration.startDate, 'EndDate':iteration.endDate, 'TaskEstimateTotal' : iteration.getEstimatedEffort(), 'TaskActualTotal' : iteration.getActualEffort()});
+				table.addRow({'Release' : padspaces(iteration.name,20), 'StartDate':iteration.startDate, 'EndDate':iteration.endDate, 'TaskEstimateTotal' : iteration.getEstimatedEffort(), 'TaskActualTotal' : iteration.getActualEffort(), 'TeamCapacity':iteration.capacity});
 			}
 			table.display(tableDiv);
 			
