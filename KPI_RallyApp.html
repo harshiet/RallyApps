@@ -50,55 +50,64 @@
         }
 
 		 function findUserStoriesForRelease(objRelease){
-			var queryConfig = {
+			var queryConfig = [];
+			queryConfig[0] = {
 				type : 'hierarchicalrequirement',
 				key : 'stories',
-				query : '(((ScheduleState = Accepted) OR (ScheduleState = Closed)) AND (Release.Name = "' + objRelease.name +'"))',
-				fetch : 'Name,AcceptedDate,TaskActualTotal,TaskEstimateTotal,Iteration,Name,ObjectID,StartDate,EndDate,UserIterationCapacities,Capacity,Release,Name,ObjectID,StartDate,ReleaseDate',
-				pagesize:'20000',
-				order: 'AcceptedDate desc'
-
+				query : '((((ScheduleState = Completed) OR(ScheduleState = Accepted)) OR (ScheduleState = Closed)) AND (Release.Name = "' + objRelease.name +'"))',
+				fetch : 'Name,TaskActualTotal,TaskEstimateTotal,Iteration,Name,ObjectID,StartDate,EndDate,UserIterationCapacities,Capacity,Release,Name,ObjectID,StartDate,ReleaseDate',
+				pagesize:20000,
+				order:"AcceptedDate desc"
 			};
-			rallyDataSource.findAll(queryConfig, processStories);
+			queryConfig[1] = {
+				type : 'defect',
+				key : 'defects',
+				query : '((State = Closed) AND (Release.Name = "' + objRelease.name +'"))',
+				fetch : 'Name,TaskActualTotal,TaskEstimateTotal,Iteration,Name,ObjectID,StartDate,EndDate,UserIterationCapacities,Capacity,Release,Name,ObjectID,StartDate,ReleaseDate',
+				pagesize:20000,
+				order:"AcceptedDate desc"
+			};
+			rallyDataSource.findAll(queryConfig, processResults);
 		 }
-	     function processStories(results){
-			
-			for (i = 0; i < results.stories.length; i++) {
-				var story = results.stories[i];
-				var iterationName = "No Iteration Assigned";
-				var iterationObjectID = "xxxxxxxxxxxxxxxxxxx";
-				var iterationStartDate = "";
-				var iterationEndDate = "";
-				var iterationCapacity=0;
-				if(story.Iteration){
-					iterationName = story.Iteration.Name;
-					iterationObjectID = story.Iteration.ObjectID;
-					iterationStartDate = story.Iteration.StartDate;
-					iterationEndDate = story.Iteration.EndDate;
-					for(x in story.Iteration.UserIterationCapacities){
-						var uCap = story.Iteration.UserIterationCapacities[x];
-						iterationCapacity += uCap.Capacity;
+	     function processResults(results){
+			for(property in results){
+				var artifact;
+				for (var i=0 ; i < results[property].length ; i++) {
+					artifact = results[property][i];
+					var iterationName = "No Iteration Assigned";
+					var iterationObjectID = "xxxxxxxxxxxxxxxxxxx";
+					var iterationStartDate = "";
+					var iterationEndDate = "";
+					var iterationCapacity=0;
+					if(artifact.Iteration){
+						var aIteration = artifact.Iteration;
+						iterationName = aIteration.Name;
+						iterationObjectID = aIteration.ObjectID;
+						iterationStartDate = aIteration.StartDate;
+						iterationEndDate = aIteration.EndDate;
+						for(x in aIteration.UserIterationCapacities){
+							var uCap = aIteration.UserIterationCapacities[x];
+							iterationCapacity += uCap.Capacity;
+						}
 					}
-				}
-				var iteration = objRelease.iterations[iterationObjectID];
+					var iteration = objRelease.iterations[iterationObjectID];
 
-				if (!iteration) {
-					iteration = new LineItem(iterationName);
-					iteration.startDate = formatDate(iterationStartDate);
-					iteration.endDate = formatDate(iterationEndDate);
-					objRelease.iterations[iterationObjectID] = iteration;
+					if (!iteration) {
+						iteration = new LineItem(iterationName);
+						iteration.startDate = formatDate(iterationStartDate);
+						iteration.endDate = formatDate(iterationEndDate);
+						objRelease.iterations[iterationObjectID] = iteration;
+						objRelease.capacity += iterationCapacity;
+					}
+					iteration.estimatedEffort +=  artifact.TaskEstimateTotal;	
+					iteration.actualEffort += artifact.TaskActualTotal;
+					iteration.capacity = iterationCapacity;
+					objRelease.estimatedEffort += artifact.TaskEstimateTotal;
+					objRelease.actualEffort += artifact.TaskActualTotal;
 				}
-				iteration.estimatedEffort +=  story.TaskEstimateTotal;	
-				iteration.actualEffort += story.TaskActualTotal;
-				iteration.capacity = iterationCapacity;
-				objRelease.estimatedEffort += story.TaskEstimateTotal;
-				objRelease.actualEffort += story.TaskActualTotal;
-				objRelease.capacity += iterationCapacity;
-				
 			}
 			display(objRelease);
-		  }
-
+		}
 		function display(release){
 			 var tableDiv = document.getElementById("tableDiv");
 			 var tableConfig = { columns: 
@@ -111,7 +120,7 @@
 			 ],
 			 width:1000};
 			table = new rally.sdk.ui.Table(tableConfig );
-			table.addRow({'Release' : bold(release.name),  'StartDate':bold(release.startDate), 'EndDate':bold(release.endDate), 'TaskEstimateTotal' : bold(release.getEstimatedEffort()), 'TaskActualTotal' : bold(release.getActualEffort()), 'TeamCapacity':release.capacity});
+			table.addRow({'Release' : bold(release.name),  'StartDate':bold(release.startDate), 'EndDate':bold(release.endDate), 'TaskEstimateTotal' : bold(release.getEstimatedEffort()), 'TaskActualTotal' : bold(release.getActualEffort()), 'TeamCapacity':bold(release.capacity)});
 			for(key in release.iterations){
 				var iteration = release.iterations[key];
 				table.addRow({'Release' : padspaces(iteration.name,20), 'StartDate':iteration.startDate, 'EndDate':iteration.endDate, 'TaskEstimateTotal' : iteration.getEstimatedEffort(), 'TaskActualTotal' : iteration.getActualEffort(), 'TeamCapacity':iteration.capacity});
