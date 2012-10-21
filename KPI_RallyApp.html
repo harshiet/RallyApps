@@ -21,6 +21,7 @@
 			this.endDate='';
 			this.capacity=0;
 			this.iterations = {};
+			this.postProductionDefectsEffortActual = 0;
 			this.getEstimatedEffort = function(){
 				return formatNumber(this.estimatedEffort);
 			}
@@ -67,43 +68,59 @@
 				pagesize:20000,
 				order:"AcceptedDate desc"
 			};
+			queryConfig[2] = {
+				type : 'defect',
+				key : 'post_production_defects',
+				query : '((Environment = "Post-Production") AND (Release.Name = "' + objRelease.name +'"))',
+				fetch : 'Name,TaskActualTotal',
+				pagesize:20000,
+				order:"AcceptedDate desc"
+			};
+
 			rallyDataSource.findAll(queryConfig, processResults);
 		 }
 	     function processResults(results){
 			for(property in results){
-				var artifact;
-				for (var i=0 ; i < results[property].length ; i++) {
-					artifact = results[property][i];
-					var iterationName = "No Iteration Assigned";
-					var iterationObjectID = "xxxxxxxxxxxxxxxxxxx";
-					var iterationStartDate = "";
-					var iterationEndDate = "";
-					var iterationCapacity=0;
-					if(artifact.Iteration){
-						var aIteration = artifact.Iteration;
-						iterationName = aIteration.Name;
-						iterationObjectID = aIteration.ObjectID;
-						iterationStartDate = aIteration.StartDate;
-						iterationEndDate = aIteration.EndDate;
-						for(x in aIteration.UserIterationCapacities){
-							var uCap = aIteration.UserIterationCapacities[x];
-							iterationCapacity += uCap.Capacity;
+				if(property == 'post_production_defects'){
+					for (var i=0 ; i < results[property].length ; i++) {
+						objRelease.postProductionDefectsEffortActual+=results[property][i].TaskActualTotal;	
+					}
+				}else{
+					var artifact;
+					for (var i=0 ; i < results[property].length ; i++) {
+						artifact = results[property][i];
+						var iterationName = "No Iteration Assigned";
+						var iterationObjectID = "xxxxxxxxxxxxxxxxxxx";
+						var iterationStartDate = "";
+						var iterationEndDate = "";
+						var iterationCapacity=0;
+						if(artifact.Iteration){
+							var aIteration = artifact.Iteration;
+							iterationName = aIteration.Name;
+							iterationObjectID = aIteration.ObjectID;
+							iterationStartDate = aIteration.StartDate;
+							iterationEndDate = aIteration.EndDate;
+							if(!objRelease.iterations[iterationObjectID]){
+								for(x in aIteration.UserIterationCapacities){
+									var uCap = aIteration.UserIterationCapacities[x];
+									iterationCapacity += uCap.Capacity;
+								}
+							}
 						}
+						var iteration = objRelease.iterations[iterationObjectID];
+						if (!iteration) {
+							iteration = new LineItem(iterationName);
+							iteration.startDate = formatDate(iterationStartDate);
+							iteration.endDate = formatDate(iterationEndDate);
+							iteration.capacity = iterationCapacity;
+							objRelease.iterations[iterationObjectID] = iteration;
+							objRelease.capacity += iterationCapacity;
+						}
+						iteration.estimatedEffort +=  artifact.TaskEstimateTotal;	
+						iteration.actualEffort += artifact.TaskActualTotal;
+						objRelease.estimatedEffort += artifact.TaskEstimateTotal;
+						objRelease.actualEffort += artifact.TaskActualTotal;
 					}
-					var iteration = objRelease.iterations[iterationObjectID];
-
-					if (!iteration) {
-						iteration = new LineItem(iterationName);
-						iteration.startDate = formatDate(iterationStartDate);
-						iteration.endDate = formatDate(iterationEndDate);
-						objRelease.iterations[iterationObjectID] = iteration;
-						objRelease.capacity += iterationCapacity;
-					}
-					iteration.estimatedEffort +=  artifact.TaskEstimateTotal;	
-					iteration.actualEffort += artifact.TaskActualTotal;
-					iteration.capacity = iterationCapacity;
-					objRelease.estimatedEffort += artifact.TaskEstimateTotal;
-					objRelease.actualEffort += artifact.TaskActualTotal;
 				}
 			}
 			display(objRelease);
@@ -116,9 +133,8 @@
 			 {key: 'EndDate', header: 'End Date'},
 			 {key: 'TaskEstimateTotal', header: 'Estimated Effort'},
              {key: 'TaskActualTotal', header: 'Actual Effort'},
-             {key: 'TeamCapacity', header: 'Team Capacity'},
-			 ],
-			 width:1000};
+             {key: 'TeamCapacity', header: 'Team Capacity'}
+			 ]};
 			table = new rally.sdk.ui.Table(tableConfig );
 			table.addRow({'Release' : bold(release.name),  'StartDate':bold(release.startDate), 'EndDate':bold(release.endDate), 'TaskEstimateTotal' : bold(release.getEstimatedEffort()), 'TaskActualTotal' : bold(release.getActualEffort()), 'TeamCapacity':bold(release.capacity)});
 			for(key in release.iterations){
