@@ -18,8 +18,10 @@
 			this.estimatedEffort = 0;
 			this.actualEffort = 0;
 			this.startDate='';
-			this.endDate='';
+			this.plannedEndDate='';
+			this.actualEndDate='';
 			this.capacity=0;
+			this.estimatedStoryPoints = 0;
 			this.iterations = {};
 			this.postProductionDefectsEffortActual = 0;
 			this.getEstimatedEffort = function(){
@@ -45,18 +47,42 @@
 			rallyDataSource.getRallyObject(selectedRelease,function(obj){
 				objRelease = new LineItem(obj.Name);
 				objRelease.startDate = formatDate(obj.ReleaseStartDate);
-				objRelease.endDate = formatDate(obj.ReleaseDate);
-				findUserStoriesForRelease(objRelease);
+				objRelease.actualEndDate = formatDate(obj.ReleaseDate);
+				findPlannedReleaseDateForRelease(obj);
+				//calculateKPIsForRelease(objRelease);
 			}); 
         }
 
-		 function findUserStoriesForRelease(objRelease){
+		function findPlannedReleaseDateForRelease(obj){
+			var queryConfig = {
+				type : 'Release.RevisionHistory.Revisions',
+				key : 'revisions',
+				query : '(ObjectID = "' + obj.ObjectID +'")',
+				fetch : 'Revision,Description,RevisionNumber',
+				pagesize:20000,
+				order: 'RevisionNumber desc'
+			};
+			rallyDataSource.findAll(queryConfig,function(results){
+				var dates = new Array();
+				for(x in results.revisions){
+					var desc = results.revisions[x].Description;
+					if(desc.indexOf('RELEASE DATE changed from ') >= 0){
+						dates[dates.length] = desc.substring(desc.indexOf('[')+1,desc.indexOf(']'));
+					}
+				}
+				objRelease.plannedEndDate = formatDate(minDate(dates));
+				log(objRelease.plannedEndDate);
+			});
+					
+		}
+
+		function calculateKPIsForRelease(objRelease){
 			var queryConfig = [];
 			queryConfig[0] = {
 				type : 'hierarchicalrequirement',
 				key : 'stories',
 				query : '((((ScheduleState = Completed) OR(ScheduleState = Accepted)) OR (ScheduleState = Closed)) AND (Release.Name = "' + objRelease.name +'"))',
-				fetch : 'Name,TaskActualTotal,TaskEstimateTotal,Iteration,Name,ObjectID,StartDate,EndDate,UserIterationCapacities,Capacity,Release,Name,ObjectID,StartDate,ReleaseDate',
+				fetch : 'Name,TaskActualTotal,TaskEstimateTotal,PlanEstimate,Iteration,Name,ObjectID,StartDate,EndDate,UserIterationCapacities,Capacity',
 				pagesize:20000,
 				order:"AcceptedDate desc"
 			};
@@ -64,7 +90,7 @@
 				type : 'defect',
 				key : 'defects',
 				query : '((State = Closed) AND (Release.Name = "' + objRelease.name +'"))',
-				fetch : 'Name,TaskActualTotal,TaskEstimateTotal,Iteration,Name,ObjectID,StartDate,EndDate,UserIterationCapacities,Capacity,Release,Name,ObjectID,StartDate,ReleaseDate',
+				fetch : 'Name,TaskActualTotal,TaskEstimateTotal,PlanEstimate,Iteration,Name,ObjectID,StartDate,EndDate,UserIterationCapacities,Capacity',
 				pagesize:20000,
 				order:"AcceptedDate desc"
 			};
@@ -111,15 +137,17 @@
 						if (!iteration) {
 							iteration = new LineItem(iterationName);
 							iteration.startDate = formatDate(iterationStartDate);
-							iteration.endDate = formatDate(iterationEndDate);
+							iteration.actualEndDate = formatDate(iterationEndDate);
 							iteration.capacity = iterationCapacity;
 							objRelease.iterations[iterationObjectID] = iteration;
 							objRelease.capacity += iterationCapacity;
 						}
 						iteration.estimatedEffort +=  artifact.TaskEstimateTotal;	
 						iteration.actualEffort += artifact.TaskActualTotal;
+						iteration.estimatedStoryPoints+=artifact.PlanEstimate;
 						objRelease.estimatedEffort += artifact.TaskEstimateTotal;
 						objRelease.actualEffort += artifact.TaskActualTotal;
+						objRelease.estimatedStoryPoints += artifact.PlanEstimate;
 					}
 				}
 			}
@@ -133,13 +161,14 @@
 			 {key: 'EndDate', header: 'End Date'},
 			 {key: 'TaskEstimateTotal', header: 'Estimated Effort'},
              {key: 'TaskActualTotal', header: 'Actual Effort'},
-             {key: 'TeamCapacity', header: 'Team Capacity'}
+             {key: 'TeamCapacity', header: 'Team Capacity'},
+ 			 {key: 'EstimatedStoryPoints', header: 'Est. Story Points'}
 			 ]};
 			table = new rally.sdk.ui.Table(tableConfig );
-			table.addRow({'Release' : bold(release.name),  'StartDate':bold(release.startDate), 'EndDate':bold(release.endDate), 'TaskEstimateTotal' : bold(release.getEstimatedEffort()), 'TaskActualTotal' : bold(release.getActualEffort()), 'TeamCapacity':bold(release.capacity)});
+			table.addRow({'Release' : bold(release.name),  'StartDate':bold(release.startDate), 'EndDate':bold(release.actualEndDate), 'TaskEstimateTotal' : bold(release.getEstimatedEffort()), 'TaskActualTotal' : bold(release.getActualEffort()), 'TeamCapacity':bold(release.capacity), 'EstimatedStoryPoints':bold(release.estimatedStoryPoints)});
 			for(key in release.iterations){
 				var iteration = release.iterations[key];
-				table.addRow({'Release' : padspaces(iteration.name,20), 'StartDate':iteration.startDate, 'EndDate':iteration.endDate, 'TaskEstimateTotal' : iteration.getEstimatedEffort(), 'TaskActualTotal' : iteration.getActualEffort(), 'TeamCapacity':iteration.capacity});
+				table.addRow({'Release' : padspaces(iteration.name,20), 'StartDate':iteration.startDate, 'EndDate':iteration.actualEndDate, 'TaskEstimateTotal' : iteration.getEstimatedEffort(), 'TaskActualTotal' : iteration.getActualEffort(), 'TeamCapacity':iteration.capacity, 'EstimatedStoryPoints':iteration.estimatedStoryPoints});
 			}
 			table.display(tableDiv);
 			
@@ -186,6 +215,21 @@
 			}
 			return text;
 		}
+		function minDate(dates){
+			var min = 0;
+			if(dates.length == 1){
+				return dates(0);
+			}else{
+				for(var i=0;i<(dates.length-1); i++){
+					min = Math.min((new Date(dates[i])).getTime(),(new Date(dates[i+1])).getTime());
+				}
+			}
+			return(new Date(min));
+		}
+		function log(text){
+			document.getElementById('log').innerHTML+=text + '<br>';
+		}
+
 		rally.addOnLoad(onLoad);
     </script>
  </head>
@@ -194,5 +238,6 @@
 	 <div id="releaseDiv"></div>
 	 
 	 <div id="tableDiv"></div>
+	 <div id="log"></div>
  </body>
  </html>
