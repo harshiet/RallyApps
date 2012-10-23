@@ -1,18 +1,21 @@
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
- <!-- Copyright (c) 2011 Rally Software Development Corp. All rights reserved -->
- <html>
- <head>
-     <title>Object Dropdown Example</title>
-     <meta name="Name" content="KPIs" />
-     <meta name="Version" content="1.32" />
-     <meta name="Vendor" content="CEB" />
- 
-    <script type="text/javascript" src="https://rally1.rallydev.com/apps/1.32/sdk.js"></script>
-     <script type="text/javascript">
+<!-- Copyright (c) 2011 Rally Software Development Corp. All rights reserved -->
+<html>
+<head>
+<title>Object Dropdown Example</title>
+<meta name="Name" content="KPIs" />
+<meta name="Version" content="1.32" />
+<meta name="Vendor" content="CEB" />
+
+<script type="text/javascript"
+	src="https://rally1.rallydev.com/apps/1.32/sdk.js"></script>
+<script type="text/javascript">
 		var rallyDataSource;
 		var table = null;
+		var tableKPI = null;
 		var releaseDropdown=null;
 		var objRelease = null;
+		var productiveHrsPerDay = 6;
 		function LineItem(name){
 			this.name = name;
 			this.estimatedEffort = 0;
@@ -30,6 +33,29 @@
 			this.getActualEffort = function(){
 				return formatNumber(this.actualEffort);
 			}
+			this.getUtilization = function(){
+				return formatNumber((this.actualEffort/this.capacity)*100) + '%';
+			}
+			this.getProductivity = function(){
+				return formatNumber((this.estimatedStoryPoints/this.capacityInStoryPoints())*100) + '%';
+			}
+			this.capacityInStoryPoints = function(){
+				return this.capacity/productiveHrsPerDay;
+			}
+			this.getScheduleVariance = function(){
+				return formatNumber((rally.sdk.util.DateTime.getDifference(new Date(this.actualEndDate), new Date(this.plannedEndDate), "day")
+				/rally.sdk.util.DateTime.getDifference(new Date(this.actualEndDate), new Date(this.startDate), "day"))*100) + '%';		
+			}
+			this.getEstimateVariance = function(){
+				return formatNumber((1-(this.actualEffort/this.estimatedEffort))*100) + '%';	
+			}
+			this.getQuality = function(){
+				return "TBD";	
+			}
+			this.getWeightedDefectDensity = function(){
+				return "TBD";	
+			}
+
 		}
 		function projectChanged(dropdown, eventArgs) {
 		   cleanUpAll();
@@ -43,13 +69,14 @@
          }
 		 function releaseChanged(dropdown, eventArgs) {
 			cleanUp(table);
+			cleanUp(tableKPI);
 			var selectedRelease = eventArgs.value;
 			rallyDataSource.getRallyObject(selectedRelease,function(obj){
 				objRelease = new LineItem(obj.Name);
-				objRelease.startDate = formatDate(obj.ReleaseStartDate);
-				objRelease.actualEndDate = formatDate(obj.ReleaseDate);
+				objRelease.startDate = obj.ReleaseStartDate;
+				objRelease.actualEndDate = obj.ReleaseDate;
 				findPlannedReleaseDateForRelease(obj);
-				//calculateKPIsForRelease(objRelease);
+				calculateKPIsForRelease(objRelease);
 			}); 
         }
 
@@ -63,15 +90,23 @@
 				order: 'RevisionNumber desc'
 			};
 			rallyDataSource.findAll(queryConfig,function(results){
-				var dates = new Array();
+				var minRevNum = 1000000;
+				var date = "";
 				for(x in results.revisions){
 					var desc = results.revisions[x].Description;
-					if(desc.indexOf('RELEASE DATE changed from ') >= 0){
-						dates[dates.length] = desc.substring(desc.indexOf('[')+1,desc.indexOf(']'));
+					var revNum = results.revisions[x].RevisionNumber;
+					var index = desc.indexOf('RELEASE DATE changed from ');
+					if( index >= 0){
+						if(revNum < minRevNum){
+							minRevNum = revNum;
+							date = desc.substring(desc.indexOf('[', index)+1,desc.indexOf(']', index));
+						}
 					}
 				}
-				objRelease.plannedEndDate = formatDate(minDate(dates));
-				log(objRelease.plannedEndDate);
+				if(date == ""){
+					date = obj.ReleaseDate;
+				}
+				objRelease.plannedEndDate = date;
 			});
 					
 		}
@@ -136,8 +171,8 @@
 						var iteration = objRelease.iterations[iterationObjectID];
 						if (!iteration) {
 							iteration = new LineItem(iterationName);
-							iteration.startDate = formatDate(iterationStartDate);
-							iteration.actualEndDate = formatDate(iterationEndDate);
+							iteration.startDate = iterationStartDate;
+							iteration.actualEndDate = iterationEndDate;
 							iteration.capacity = iterationCapacity;
 							objRelease.iterations[iterationObjectID] = iteration;
 							objRelease.capacity += iterationCapacity;
@@ -154,26 +189,49 @@
 			display(objRelease);
 		}
 		function display(release){
-			 var tableDiv = document.getElementById("tableDiv");
-			 var tableConfig = { columns: 
-             [{key: 'Release', header: 'Release', width:500},
-			 {key: 'StartDate', header: 'Start Date'},
-			 {key: 'EndDate', header: 'End Date'},
-			 {key: 'TaskEstimateTotal', header: 'Estimated Effort'},
-             {key: 'TaskActualTotal', header: 'Actual Effort'},
-             {key: 'TeamCapacity', header: 'Team Capacity'},
+			var tableDiv = document.getElementById("tableDiv");
+			tableDiv.innerHTML = '<br/><b><span style="font-size:1.2em;padding:2px;">Data used to determine KPIs</span></b> <br/><br/>';
+			var tableConfig = { columns: 
+             [{key: 'Release', header: 'Release', width:'300'},
+			 {key: 'StartDate', header: 'Start date'},
+			 {key: 'PlannedEndDate', header: 'Planned end date'},
+			 {key: 'ActualEndDate', header: 'Actual end date'},
+			{key: 'TaskEstimateTotal', header: 'Estimated effort (Hr)'},
+             {key: 'TaskActualTotal', header: 'Actual effort (Hr)'},
+             {key: 'TeamCapacityH', header: 'Team capacity (Hr)'},
+             {key: 'TeamCapacitySP', header: 'Team capacity (SP)'},
  			 {key: 'EstimatedStoryPoints', header: 'Est. Story Points'}
 			 ]};
 			table = new rally.sdk.ui.Table(tableConfig );
-			table.addRow({'Release' : bold(release.name),  'StartDate':bold(release.startDate), 'EndDate':bold(release.actualEndDate), 'TaskEstimateTotal' : bold(release.getEstimatedEffort()), 'TaskActualTotal' : bold(release.getActualEffort()), 'TeamCapacity':bold(release.capacity), 'EstimatedStoryPoints':bold(release.estimatedStoryPoints)});
+			table.addRow({'Release' : bold(release.name),'StartDate':bold(formatDate(release.startDate)),'PlannedEndDate':bold(formatDate(release.plannedEndDate)),'ActualEndDate':bold(formatDate(release.actualEndDate)), 'TaskEstimateTotal' : bold(release.getEstimatedEffort()), 'TaskActualTotal' : bold(release.getActualEffort()),'TeamCapacityH':bold(release.capacity),'TeamCapacitySP':bold(formatNumber(release.capacityInStoryPoints())),'EstimatedStoryPoints':bold(release.estimatedStoryPoints)});
 			for(key in release.iterations){
 				var iteration = release.iterations[key];
-				table.addRow({'Release' : padspaces(iteration.name,20), 'StartDate':iteration.startDate, 'EndDate':iteration.actualEndDate, 'TaskEstimateTotal' : iteration.getEstimatedEffort(), 'TaskActualTotal' : iteration.getActualEffort(), 'TeamCapacity':iteration.capacity, 'EstimatedStoryPoints':iteration.estimatedStoryPoints});
+				table.addRow({'Release' : padspaces(iteration.name,20),'StartDate':formatDate(iteration.startDate),'ActualEndDate':formatDate(iteration.actualEndDate), 'TaskEstimateTotal' : iteration.getEstimatedEffort(), 'TaskActualTotal' : iteration.getActualEffort(),'TeamCapacityH':iteration.capacity,'TeamCapacitySP':formatNumber(iteration.capacityInStoryPoints()),'EstimatedStoryPoints':iteration.estimatedStoryPoints});
 			}
 			table.display(tableDiv);
 			
+			displayKPI(release);
+		}
+		function displayKPI(release){
+		 	var tableDiv = document.getElementById("tableKPIDiv");
+			tableDiv.innerHTML = '<br/><b><span style="font-size:1.2em;padding:2px;">KPIs for Release: ' + release.name + '</span></b> <br/><br/>';
+	 		var tableConfig = { columns: 
+     		[{key: 'KPI1', header: 'KPI'},
+	 		 {key: 'Value1', header: 'Value'},
+	 		 {key: 'KPI2', header: 'KPI'},
+	 		 {key: 'Value2', header: 'Value'}],
+				width:800};
+			tableKPI = new rally.sdk.ui.Table(tableConfig );
+			tableKPI.addRow({'KPI1':bold('Team Utilization'), 'Value1':bold(release.getUtilization()),'KPI2':bold('Weighted Defect Density'), 'Value2':bold(release.getWeightedDefectDensity())});
+			tableKPI.addRow({'KPI1':bold('Team Productivity'), 'Value1':bold(release.getProductivity()),'KPI2':bold('On Time Delivery Index'), 'Value2':bold('TBD')});
+			tableKPI.addRow({'KPI1':bold('Schedule Variance'), 'Value1': bold(release.getScheduleVariance()),'KPI2':bold('Defect Aging'), 'Value2':bold('TBD')});
+			tableKPI.addRow({'KPI1':bold('Estimate Variance'), 'Value1':bold(release.getEstimateVariance()),'KPI2':bold('Mean Time to Resolve'), 'Value2':bold('TBD')});
+			tableKPI.addRow({'KPI1':bold('Quality'), 'Value1':bold(release.getQuality())});
+			tableKPI.display(tableDiv);
+			hideSpinner();
 		}
        function onLoad() {
+    	   showSpinner();
            rallyDataSource = new rally.sdk.data.RallyDataSource('__WORKSPACE_OID__',
                                                               '__PROJECT_OID__',
                                                               '__PROJECT_SCOPING_UP__',
@@ -201,7 +259,7 @@
 			return '<b>' + text + '</b>';
 		}
 		function formatNumber(num){
-			return num.toFixed(0);
+			return num.toFixed(1);
 		}
 		function formatDate(date){
 			if(date == ""){
@@ -215,29 +273,31 @@
 			}
 			return text;
 		}
-		function minDate(dates){
-			var min = 0;
-			if(dates.length == 1){
-				return dates(0);
-			}else{
-				for(var i=0;i<(dates.length-1); i++){
-					min = Math.min((new Date(dates[i])).getTime(),(new Date(dates[i+1])).getTime());
-				}
-			}
-			return(new Date(min));
-		}
 		function log(text){
 			document.getElementById('log').innerHTML+=text + '<br>';
 		}
+	     var waiter;
 
+	    function hideSpinner() {
+	    	waiter.hide();
+	    }
+		function showSpinner() {
+	         waiter = new rally.sdk.ui.basic.Wait({hideTarget: false});
+	         waiter.display("div1");
+	       }
 		rally.addOnLoad(onLoad);
     </script>
- </head>
-   <body>
-     <div id="projectDiv"></div>
-	 <div id="releaseDiv"></div>
-	 
-	 <div id="tableDiv"></div>
-	 <div id="log"></div>
- </body>
- </html>
+</head>
+<body>
+	<div style="min-height:100px;border: #000 1px dashed;padding:10px;" id="div1">
+	<div id="projectDiv"></div>
+	<div id="releaseDiv"></div>
+	<br/>
+	<div id="KPIHeader"></div>
+	<div id="tableKPIDiv"></div>
+	<br/>
+	<div id="tableDiv"></div>
+	<div id="log"></div>
+	</div>
+</body>
+</html>
