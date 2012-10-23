@@ -16,6 +16,17 @@
 		var releaseDropdown=null;
 		var objRelease = null;
 		var productiveHrsPerDay = 6;
+		var kpiMap = {};
+		kpiMap['tu'] = ['Team Utilization', 'Actual Hours Spent / Total Team Capacity in Hours'];
+		kpiMap['tp'] = ['Team Productivity','Number of Story Points Delivered / Total Team Capacity in Story Points'];
+		kpiMap['sv'] = ['Schedule Variance','(Actual Completion Date – Planned Completion Date) / Total Release Duration'];
+		kpiMap['ev'] = ['Estimate Variance','1 – (Actual Effort / Estimated Effort )'];
+		kpiMap['qu'] = ['Quality','1- (Actual effort spent on Post-Production defects/Total Actual Release Effort)'];
+		kpiMap['wdd'] = ['Weighted Defect Density','(Critical Defects Effort * 5 + High Defects * 3 + Medium Defects * 2 + Low Defects * 1) / Total Actual Release Effort'];
+		kpiMap['otdi'] = ['On Time Delivery Index','Total milestones delivered on time / Total milestones delivered'];
+		kpiMap['da'] = ['Defect Aging','Number of defects open for <1 week, 1-2 weeks, 2-4 weeks, >4 weeks'];
+		kpiMap['mtr'] = ['Mean Time to Resolve','Average of the effort spent in hours to fix bugs reported by partners in each of the following applicable categories - P1, P2, P3 and P4'];
+
 		function LineItem(name){
 			this.name = name;
 			this.estimatedEffort = 0;
@@ -224,17 +235,36 @@
 	 		 {key: 'Value2', header: 'Value'}],
 				width:800};
 			tableKPI = new rally.sdk.ui.Table(tableConfig );
-			tableKPI.addRow({'KPI1':bold('Team Utilization'), 'Value1':bold(release.getUtilization()),'KPI2':bold('Weighted Defect Density'), 'Value2':bold(release.getWeightedDefectDensity())});
-			tableKPI.addRow({'KPI1':bold('Team Productivity'), 'Value1':bold(release.getProductivity()),'KPI2':bold('On Time Delivery Index'), 'Value2':bold('TBD')});
-			tableKPI.addRow({'KPI1':bold('Schedule Variance'), 'Value1': bold(release.getScheduleVariance()),'KPI2':bold('Defect Aging'), 'Value2':bold('TBD')});
-			tableKPI.addRow({'KPI1':bold('Estimate Variance'), 'Value1':bold(release.getEstimateVariance()),'KPI2':bold('Mean Time to Resolve'), 'Value2':bold('TBD')});
-			tableKPI.addRow({'KPI1':bold('Quality'), 'Value1':bold(release.getQuality())});
+			tableKPI.addRow({'KPI1':kpiLabel("tu"), 'Value1':bold(release.getUtilization()),'KPI2':kpiLabel("wdd"), 'Value2':bold(release.getWeightedDefectDensity())});
+			tableKPI.addRow({'KPI1':kpiLabel("tp"), 'Value1':bold(release.getProductivity()),'KPI2':kpiLabel("otdi"), 'Value2':bold('TBD')});
+			tableKPI.addRow({'KPI1':kpiLabel("sv"), 'Value1': bold(release.getScheduleVariance()),'KPI2':kpiLabel("da"), 'Value2':bold('TBD')});
+			tableKPI.addRow({'KPI1':kpiLabel("ev"), 'Value1':bold(release.getEstimateVariance()),'KPI2':kpiLabel("mtr"), 'Value2':bold('TBD')});
+			tableKPI.addRow({'KPI1':kpiLabel("qu"), 'Value1':bold(release.getQuality())});
 			tableKPI.display(tableDiv);
+			createToolTips();
 			hideSpinner();
 		}
-       function onLoad() {
-    	   showSpinner();
-           rallyDataSource = new rally.sdk.data.RallyDataSource('__WORKSPACE_OID__',
+
+		function kpiLabel(kpi){
+			var tip = '<span id="'+kpi+'" style="background-color:#026cfd;display: inline-block; width:15px;height:15px;margin-left:10px;color:white;text-align:center;">?</span>'
+			return bold(kpiMap[kpi][0])+tip;
+		}
+ 		function createToolTips(){
+			for(kpi in kpiMap){
+				var tooltip = new rally.sdk.ui.basic.Tooltip({
+					message: kpiMap[kpi][1],
+					position: "after"
+				});
+				tooltip.display(kpi);
+			}
+		}
+		function onLoad() {
+    		showSpinner();
+			rally.sdk.ui.AppHeader.setHelpUrl("http://www.google.com");
+			rally.sdk.ui.AppHeader.showMessage("info", "This app works best in Firefox browser");
+
+
+			rallyDataSource = new rally.sdk.data.RallyDataSource('__WORKSPACE_OID__',
                                                               '__PROJECT_OID__',
                                                               '__PROJECT_SCOPING_UP__',
                                                              '__PROJECT_SCOPING_DOWN__');
@@ -251,6 +281,8 @@
 			cleanUp(releaseDropdown);
 		}
 		function cleanUp(obj){
+			document.getElementById("tableKPIDiv").innerHTML = "";
+			document.getElementById("tableDiv").innerHTML = "";
 			try{
 				if(obj){
 					obj.destroy();
@@ -292,6 +324,7 @@
 			}
 	       }
 		rally.addOnLoad(onLoad);
+		 
     </script>
 </head>
 <body>
@@ -304,6 +337,7 @@
 	<br/>
 	<div id="tableDiv"></div>
 	<div id="log"></div>
+
 	</div>
 </body>
 </html>
