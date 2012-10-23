@@ -58,9 +58,10 @@
 
 		}
 		function projectChanged(dropdown, eventArgs) {
-		   cleanUpAll();
-		   var selectedProject = eventArgs.value;
-		   rallyDataSource = new rally.sdk.data.RallyDataSource('__WORKSPACE_OID__',
+			showSpinner();
+			cleanUpAll();
+		   	var selectedProject = eventArgs.value;
+		   	rallyDataSource = new rally.sdk.data.RallyDataSource('__WORKSPACE_OID__',
                                                               rally.sdk.util.Ref.getOidFromRef(selectedProject),
                                                               '__PROJECT_SCOPING_UP__',
                                                              '__PROJECT_SCOPING_DOWN__');
@@ -68,6 +69,7 @@
 			releaseDropdown.display("releaseDiv", releaseChanged);
          }
 		 function releaseChanged(dropdown, eventArgs) {
+			showSpinner();
 			cleanUp(table);
 			cleanUp(tableKPI);
 			var selectedRelease = eventArgs.value;
@@ -206,7 +208,7 @@
 			table.addRow({'Release' : bold(release.name),'StartDate':bold(formatDate(release.startDate)),'PlannedEndDate':bold(formatDate(release.plannedEndDate)),'ActualEndDate':bold(formatDate(release.actualEndDate)), 'TaskEstimateTotal' : bold(release.getEstimatedEffort()), 'TaskActualTotal' : bold(release.getActualEffort()),'TeamCapacityH':bold(release.capacity),'TeamCapacitySP':bold(formatNumber(release.capacityInStoryPoints())),'EstimatedStoryPoints':bold(release.estimatedStoryPoints)});
 			for(key in release.iterations){
 				var iteration = release.iterations[key];
-				table.addRow({'Release' : padspaces(iteration.name,20),'StartDate':formatDate(iteration.startDate),'ActualEndDate':formatDate(iteration.actualEndDate), 'TaskEstimateTotal' : iteration.getEstimatedEffort(), 'TaskActualTotal' : iteration.getActualEffort(),'TeamCapacityH':iteration.capacity,'TeamCapacitySP':formatNumber(iteration.capacityInStoryPoints()),'EstimatedStoryPoints':iteration.estimatedStoryPoints});
+				table.addRow({'Release' : padspaces(iteration.name,10),'StartDate':formatDate(iteration.startDate),'ActualEndDate':formatDate(iteration.actualEndDate), 'TaskEstimateTotal' : iteration.getEstimatedEffort(), 'TaskActualTotal' : iteration.getActualEffort(),'TeamCapacityH':iteration.capacity,'TeamCapacitySP':formatNumber(iteration.capacityInStoryPoints()),'EstimatedStoryPoints':iteration.estimatedStoryPoints});
 			}
 			table.display(tableDiv);
 			
@@ -276,20 +278,24 @@
 		function log(text){
 			document.getElementById('log').innerHTML+=text + '<br>';
 		}
-	     var waiter;
-
+	    var waiter;
+		var spinneron = false;
 	    function hideSpinner() {
 	    	waiter.hide();
+	    	spinneron = false;
 	    }
 		function showSpinner() {
-	         waiter = new rally.sdk.ui.basic.Wait({hideTarget: false});
-	         waiter.display("div1");
+			if(!spinneron){
+	        	waiter = new rally.sdk.ui.basic.Wait({hideTarget: false});
+	         	waiter.display("div1");
+	         	spinneron = true;
+			}
 	       }
 		rally.addOnLoad(onLoad);
     </script>
 </head>
 <body>
-	<div style="min-height:100px;border: #000 1px dashed;padding:10px;" id="div1">
+	<div style="min-height:500px;border: #000 1px dashed;padding:10px;" id="div1">
 	<div id="projectDiv"></div>
 	<div id="releaseDiv"></div>
 	<br/>
