@@ -129,17 +129,33 @@
                     return this.capacity / productiveHrsPerDay;
                 };
                 this.getScheduleVariance = function () {
-                    return formatNumber(((rally.sdk.util.DateTime.getDifference(new Date(this.actualEndDate), new Date(this.actualStartDate), "day") / rally.sdk.util.DateTime.getDifference(new Date(this.plannedEndDate), new Date(this.plannedStartDate), "day"))-1) * 100) + '%';
+			var variance = ((rally.sdk.util.DateTime.getDifference(new Date(this.actualEndDate), new Date(this.actualStartDate), "day") / rally.sdk.util.DateTime.getDifference(new Date(this.plannedEndDate), new Date(this.plannedStartDate), "day"))-1);
+			var overUnder = "";
+			if(variance == 0){
+				overUnder = "no variance";
+			}else{
+				if(variance > 0){
+					overUnder = "took longer than estimated";
+				}else{
+					overUnder = "took shorter than estimated";
+				}
+			}
+			    return formatNumber(variance * 100) + '%&nbsp;&nbsp;&nbsp;(' + overUnder + ')';
                 };
                 this.getEstimateVariance = function () {
 			var variance = 1 - (this.actualEffort / this.estimatedEffort);
 			var overUnder = "";
-			if(variance < 0){
-				overUnder = "under-estimation";
+			if(variance == 0){
+				overUnder = "actual was same as estimated";
 			}else{
-				overUnder = "over-estimation";
+				if(variance < 0){
+					overUnder = "under-estimation: actual was more than estimated";
+				}else{
+					overUnder = "over-estimation: actual was less than estimated";
+				}
 			}
-			    return formatNumber(mod(variance) * 100) + '%&nbsp;&nbsp;&nbsp;(' + overUnder + ')';
+				
+			return formatNumber(variance * 100) + '%&nbsp;&nbsp;&nbsp;(' + overUnder + ')';
                 };
                 this.getQuality = function () {
                     return "TBD";
@@ -341,6 +357,7 @@
                             objRelease.actualEffort += artifact.TaskActualTotal;
                             objRelease.estimatedStoryPoints += artifact.PlanEstimate;
                             if(isClosed(artifact.ScheduleState)){
+	                    	iteration.deliveredStoryPoints += artifact.PlanEstimate;
 	                    	objRelease.deliveredStoryPoints += artifact.PlanEstimate;
                             }
                         }
