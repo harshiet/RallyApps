@@ -1,343 +1,447 @@
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
-<!-- Copyright (c) 2011 Rally Software Development Corp. All rights reserved -->
+<!-- Copyright (c) 2011 Rally Software Development Corp. All rights reserved
+-->
 <html>
-<head>
-<title>Object Dropdown Example</title>
-<meta name="Name" content="KPIs" />
-<meta name="Version" content="1.32" />
-<meta name="Vendor" content="CEB" />
-
-<script type="text/javascript"
-	src="https://rally1.rallydev.com/apps/1.32/sdk.js"></script>
-<script type="text/javascript">
-		var rallyDataSource;
-		var table = null;
-		var tableKPI = null;
-		var releaseDropdown=null;
-		var objRelease = null;
-		var productiveHrsPerDay = 6;
-		var kpiMap = {};
-		kpiMap['tu'] = ['Team Utilization', 'Actual Hours Spent / Total Team Capacity in Hours'];
-		kpiMap['tp'] = ['Team Productivity','Number of Story Points Delivered / Total Team Capacity in Story Points'];
-		kpiMap['sv'] = ['Schedule Variance','(Actual Completion Date – Planned Completion Date) / Total Release Duration'];
-		kpiMap['ev'] = ['Estimate Variance','1 – (Actual Effort / Estimated Effort )'];
-		kpiMap['qu'] = ['Quality','1- (Actual effort spent on Post-Production defects/Total Actual Release Effort)'];
-		kpiMap['wdd'] = ['Weighted Defect Density','(Critical Defects Effort * 5 + High Defects * 3 + Medium Defects * 2 + Low Defects * 1) / Total Actual Release Effort'];
-		kpiMap['otdi'] = ['On Time Delivery Index','Total milestones delivered on time / Total milestones delivered'];
-		kpiMap['da'] = ['Defect Aging','Number of defects open for <1 week, 1-2 weeks, 2-4 weeks, >4 weeks'];
-		kpiMap['mtr'] = ['Mean Time to Resolve','Average of the effort spent in hours to fix bugs reported by partners in each of the following applicable categories - P1, P2, P3 and P4'];
-
-		function LineItem(name){
-			this.name = name;
-			this.estimatedEffort = 0;
-			this.actualEffort = 0;
-			this.startDate='';
-			this.plannedEndDate='';
-			this.actualEndDate='';
-			this.capacity=0;
-			this.estimatedStoryPoints = 0;
-			this.iterations = {};
-			this.postProductionDefectsEffortActual = 0;
-			this.getEstimatedEffort = function(){
-				return formatNumber(this.estimatedEffort);
-			}
-			this.getActualEffort = function(){
-				return formatNumber(this.actualEffort);
-			}
-			this.getUtilization = function(){
-				return formatNumber((this.actualEffort/this.capacity)*100) + '%';
-			}
-			this.getProductivity = function(){
-				return formatNumber((this.estimatedStoryPoints/this.capacityInStoryPoints())*100) + '%';
-			}
-			this.capacityInStoryPoints = function(){
-				return this.capacity/productiveHrsPerDay;
-			}
-			this.getScheduleVariance = function(){
-				return formatNumber((rally.sdk.util.DateTime.getDifference(new Date(this.actualEndDate), new Date(this.plannedEndDate), "day")
-				/rally.sdk.util.DateTime.getDifference(new Date(this.actualEndDate), new Date(this.startDate), "day"))*100) + '%';		
-			}
-			this.getEstimateVariance = function(){
-				return formatNumber((1-(this.actualEffort/this.estimatedEffort))*100) + '%';	
-			}
-			this.getQuality = function(){
-				return "TBD";	
-			}
-			this.getWeightedDefectDensity = function(){
-				return "TBD";	
-			}
-
-		}
-		function projectChanged(dropdown, eventArgs) {
-			showSpinner();
-			cleanUpAll();
-		   	var selectedProject = eventArgs.value;
-		   	rallyDataSource = new rally.sdk.data.RallyDataSource('__WORKSPACE_OID__',
-                                                              rally.sdk.util.Ref.getOidFromRef(selectedProject),
-                                                              '__PROJECT_SCOPING_UP__',
-                                                             '__PROJECT_SCOPING_DOWN__');
-			releaseDropdown = new rally.sdk.ui.ObjectDropdown( { type:"Release", label : "Select a release ", width:"300",order:"StartDate desc", attribute:"Name"}, rallyDataSource); 
-			releaseDropdown.display("releaseDiv", releaseChanged);
-         }
-		 function releaseChanged(dropdown, eventArgs) {
-			showSpinner();
-			cleanUp(table);
-			cleanUp(tableKPI);
-			var selectedRelease = eventArgs.value;
-			rallyDataSource.getRallyObject(selectedRelease,function(obj){
-				objRelease = new LineItem(obj.Name);
-				objRelease.startDate = obj.ReleaseStartDate;
-				objRelease.actualEndDate = obj.ReleaseDate;
-				findPlannedReleaseDateForRelease(obj);
-				calculateKPIsForRelease(objRelease);
-			}); 
+    
+    <head>
+        <title>Object Dropdown Example</title>
+        <meta name="Name" content="KPIs" />
+        <meta name="Version" content="1.32" />
+        <meta name="Vendor" content="CEB" />
+        <style type="text/css">
+        div .dojoxGridSortNode, .dojoxGridNoSortNode {
+        	height:auto;
+        	padding: 0px;
+        	text-align:center;
         }
+        div .dojoxGridCell {
+        	text-align:center;
+        }
+        </style>
+        <script src="https://rally1.rallydev.com/apps/1.32/sdk.js"></script>
+        <script type="text/javascript">
+            var rallyDataSource;
+            var table = null;
+            var tableKPI = null;
+            var releaseDropdown = null;
+            var objRelease = null;
+            var productiveHrsPerDay = 6;
+            var kpiMap = {};
+            kpiMap.tu = ['Team Utilization', 'Actual Hours Spent / Total Team Capacity in Hours'];
+            kpiMap.tp = ['Team Productivity', 'Number of Story Points Delivered / Number of Story Points Committed	'];
+            kpiMap.sv = ['Schedule Variance', '[(Actual Completion Date – Actual Start Date) / (Planned Completion Date – Planned Start Date)] - 1'];
+            kpiMap.ev = ['Estimate Variance', '1 – (Actual Effort / Estimated Effort )'];
+            kpiMap.qu = ['Quality', '1- (Actual effort spent on Post-Production defects/Total Actual Release Effort)'];
+            kpiMap.wdd = ['Weighted Defect Density', '(Critical Defects Effort * 5 + High Defects * 3 + Medium Defects * 2 + Low Defects * 1) / Total Actual Release Effort'];
+            kpiMap.otdi = ['On Time Delivery Index', 'Total milestones delivered on time / Total milestones delivered'];
+            kpiMap.da = ['Defect Aging', 'Number of defects open for <1 week, 1-2 weeks, 2-4 weeks, >4 weeks'];
+            kpiMap.mtr = ['Mean Time to Resolve', 'Average of the effort spent in hours to fix bugs reported by partners in each of the following applicable categories - P1, P2, P3 and P4'];
+            var waiter;
+            var spinneron = false;
 
-		function findPlannedReleaseDateForRelease(obj){
-			var queryConfig = {
-				type : 'Release.RevisionHistory.Revisions',
-				key : 'revisions',
-				query : '(ObjectID = "' + obj.ObjectID +'")',
-				fetch : 'Revision,Description,RevisionNumber',
-				pagesize:20000,
-				order: 'RevisionNumber desc'
-			};
-			rallyDataSource.findAll(queryConfig,function(results){
-				var minRevNum = 1000000;
-				var date = "";
-				for(x in results.revisions){
-					var desc = results.revisions[x].Description;
-					var revNum = results.revisions[x].RevisionNumber;
-					var index = desc.indexOf('RELEASE DATE changed from ');
-					if( index >= 0){
-						if(revNum < minRevNum){
-							minRevNum = revNum;
-							date = desc.substring(desc.indexOf('[', index)+1,desc.indexOf(']', index));
-						}
-					}
-				}
-				if(date == ""){
-					date = obj.ReleaseDate;
-				}
-				objRelease.plannedEndDate = date;
-			});
-					
-		}
+            function hideSpinner() {
+                waiter.hide();
+                spinneron = false;
+            }
 
-		function calculateKPIsForRelease(objRelease){
-			var queryConfig = [];
-			queryConfig[0] = {
-				type : 'hierarchicalrequirement',
-				key : 'stories',
-				query : '((((ScheduleState = Completed) OR(ScheduleState = Accepted)) OR (ScheduleState = Closed)) AND (Release.Name = "' + objRelease.name +'"))',
-				fetch : 'Name,TaskActualTotal,TaskEstimateTotal,PlanEstimate,Iteration,Name,ObjectID,StartDate,EndDate,UserIterationCapacities,Capacity',
-				pagesize:20000,
-				order:"AcceptedDate desc"
-			};
-			queryConfig[1] = {
-				type : 'defect',
-				key : 'defects',
-				query : '((State = Closed) AND (Release.Name = "' + objRelease.name +'"))',
-				fetch : 'Name,TaskActualTotal,TaskEstimateTotal,PlanEstimate,Iteration,Name,ObjectID,StartDate,EndDate,UserIterationCapacities,Capacity',
-				pagesize:20000,
-				order:"AcceptedDate desc"
-			};
-			queryConfig[2] = {
-				type : 'defect',
-				key : 'post_production_defects',
-				query : '((Environment = "Post-Production") AND (Release.Name = "' + objRelease.name +'"))',
-				fetch : 'Name,TaskActualTotal',
-				pagesize:20000,
-				order:"AcceptedDate desc"
-			};
+            function showSpinner() {
+                if (!spinneron) {
+                    waiter = new rally.sdk.ui.basic.Wait({
+                        hideTarget: false
+                    });
+                    waiter.display("div1");
+                    spinneron = true;
+                }
+            }
 
-			rallyDataSource.findAll(queryConfig, processResults);
-		 }
-	     function processResults(results){
-			for(property in results){
-				if(property == 'post_production_defects'){
-					for (var i=0 ; i < results[property].length ; i++) {
-						objRelease.postProductionDefectsEffortActual+=results[property][i].TaskActualTotal;	
-					}
-				}else{
-					var artifact;
-					for (var i=0 ; i < results[property].length ; i++) {
-						artifact = results[property][i];
-						var iterationName = "No Iteration Assigned";
-						var iterationObjectID = "xxxxxxxxxxxxxxxxxxx";
-						var iterationStartDate = "";
-						var iterationEndDate = "";
-						var iterationCapacity=0;
-						if(artifact.Iteration){
-							var aIteration = artifact.Iteration;
-							iterationName = aIteration.Name;
-							iterationObjectID = aIteration.ObjectID;
-							iterationStartDate = aIteration.StartDate;
-							iterationEndDate = aIteration.EndDate;
-							if(!objRelease.iterations[iterationObjectID]){
-								for(x in aIteration.UserIterationCapacities){
-									var uCap = aIteration.UserIterationCapacities[x];
-									iterationCapacity += uCap.Capacity;
-								}
-							}
-						}
-						var iteration = objRelease.iterations[iterationObjectID];
-						if (!iteration) {
-							iteration = new LineItem(iterationName);
-							iteration.startDate = iterationStartDate;
-							iteration.actualEndDate = iterationEndDate;
-							iteration.capacity = iterationCapacity;
-							objRelease.iterations[iterationObjectID] = iteration;
-							objRelease.capacity += iterationCapacity;
-						}
-						iteration.estimatedEffort +=  artifact.TaskEstimateTotal;	
-						iteration.actualEffort += artifact.TaskActualTotal;
-						iteration.estimatedStoryPoints+=artifact.PlanEstimate;
-						objRelease.estimatedEffort += artifact.TaskEstimateTotal;
-						objRelease.actualEffort += artifact.TaskActualTotal;
-						objRelease.estimatedStoryPoints += artifact.PlanEstimate;
-					}
-				}
+            function cleanUp(obj) {
+                document.getElementById("tableKPIDiv").innerHTML = "";
+                document.getElementById("tableDiv").innerHTML = "";
+                try {
+                    if (obj) {
+                        obj.destroy();
+                    }
+                } catch (err) {}
+            }
+
+            function cleanUpAll() {
+                cleanUp(table);
+                cleanUp(releaseDropdown);
+            }
+
+            function bold(text) {
+                return '<b>' + text + '<b/>';
+            }
+
+            function formatNumber(num) {
+                return num.toFixed(1);
+            }
+
+            function formatDate(inDate) {
+                if (inDate === "") {
+                    return inDate;
+                }
+                return rally.sdk.util.DateTime.format(inDate, "dd-MMM-yyyy");
+            }
+
+            function padspaces(text, numspaces) {
+                for (var i = 0; i < numspaces; i++) {
+                    text = '&nbsp;' + text;
+                }
+                return text;
+            }
+            
+            function mod(num){
+            	if(num <0) return -num;
+            	return num;
+            }
+            function isClosed(state){
+            	return state == 'Completed' || state == 'Accepted' || state == 'Closed';
+            };
+
+            function LineItem(name, objectId) {
+                this.name = name;
+                this.objectId = objectId;
+                this.estimatedEffort = 0;
+                this.actualEffort = 0;
+                this.plannedStartDate = '';
+                this.actualStartDate = '';
+                this.plannedEndDate = '';
+                this.actualEndDate = '';
+                this.capacity = 0;
+                this.estimatedStoryPoints = 0;
+                this.deliveredStoryPoints = 0;
+                this.iterations = {};
+                this.postProductionDefectsEffortActual = 0;
+                this.getEstimatedEffort = function () {
+                    return formatNumber(this.estimatedEffort);
+                };
+                this.getActualEffort = function () {
+                    return formatNumber(this.actualEffort);
+                };
+                this.getUtilization = function () {
+                    return formatNumber((this.actualEffort / this.capacity) * 100) + '%';
+                };
+                this.getProductivity = function () {
+                    return formatNumber((this.deliveredStoryPoints / this.estimatedStoryPoints) * 100) + '%';
+                };
+                this.capacityInStoryPoints = function () {
+                    return this.capacity / productiveHrsPerDay;
+                };
+                this.getScheduleVariance = function () {
+                    return formatNumber(((rally.sdk.util.DateTime.getDifference(new Date(this.actualEndDate), new Date(this.actualStartDate), "day") / rally.sdk.util.DateTime.getDifference(new Date(this.plannedEndDate), new Date(this.plannedStartDate), "day"))-1) * 100) + '%';
+                };
+                this.getEstimateVariance = function () {
+			var variance = 1 - (this.actualEffort / this.estimatedEffort);
+			var overUnder = "";
+			if(variance < 0){
+				overUnder = "under-estimation";
+			}else{
+				overUnder = "over-estimation";
 			}
-			display(objRelease);
-		}
-		function display(release){
-			var tableDiv = document.getElementById("tableDiv");
-			tableDiv.innerHTML = '<br/><b><span style="font-size:1.2em;padding:2px;">Data used to determine KPIs</span></b> <br/><br/>';
-			var tableConfig = { columns: 
-             [{key: 'Release', header: 'Release', width:'300'},
-			 {key: 'StartDate', header: 'Start date'},
-			 {key: 'PlannedEndDate', header: 'Planned end date'},
-			 {key: 'ActualEndDate', header: 'Actual end date'},
-			{key: 'TaskEstimateTotal', header: 'Estimated effort (Hr)'},
-             {key: 'TaskActualTotal', header: 'Actual effort (Hr)'},
-             {key: 'TeamCapacityH', header: 'Team capacity (Hr)'},
-             {key: 'TeamCapacitySP', header: 'Team capacity (SP)'},
- 			 {key: 'EstimatedStoryPoints', header: 'Est. Story Points'}
-			 ]};
-			table = new rally.sdk.ui.Table(tableConfig );
-			table.addRow({'Release' : bold(release.name),'StartDate':bold(formatDate(release.startDate)),'PlannedEndDate':bold(formatDate(release.plannedEndDate)),'ActualEndDate':bold(formatDate(release.actualEndDate)), 'TaskEstimateTotal' : bold(release.getEstimatedEffort()), 'TaskActualTotal' : bold(release.getActualEffort()),'TeamCapacityH':bold(release.capacity),'TeamCapacitySP':bold(formatNumber(release.capacityInStoryPoints())),'EstimatedStoryPoints':bold(release.estimatedStoryPoints)});
-			for(key in release.iterations){
-				var iteration = release.iterations[key];
-				table.addRow({'Release' : padspaces(iteration.name,10),'StartDate':formatDate(iteration.startDate),'ActualEndDate':formatDate(iteration.actualEndDate), 'TaskEstimateTotal' : iteration.getEstimatedEffort(), 'TaskActualTotal' : iteration.getActualEffort(),'TeamCapacityH':iteration.capacity,'TeamCapacitySP':formatNumber(iteration.capacityInStoryPoints()),'EstimatedStoryPoints':iteration.estimatedStoryPoints});
-			}
-			table.display(tableDiv);
-			
-			displayKPI(release);
-		}
-		function displayKPI(release){
-		 	var tableDiv = document.getElementById("tableKPIDiv");
-			tableDiv.innerHTML = '<br/><b><span style="font-size:1.2em;padding:2px;">KPIs for Release: ' + release.name + '</span></b> <br/><br/>';
-	 		var tableConfig = { columns: 
-     		[{key: 'KPI1', header: 'KPI'},
-	 		 {key: 'Value1', header: 'Value'},
-	 		 {key: 'KPI2', header: 'KPI'},
-	 		 {key: 'Value2', header: 'Value'}],
-				width:800};
-			tableKPI = new rally.sdk.ui.Table(tableConfig );
-			tableKPI.addRow({'KPI1':kpiLabel("tu"), 'Value1':bold(release.getUtilization()),'KPI2':kpiLabel("wdd"), 'Value2':bold(release.getWeightedDefectDensity())});
-			tableKPI.addRow({'KPI1':kpiLabel("tp"), 'Value1':bold(release.getProductivity()),'KPI2':kpiLabel("otdi"), 'Value2':bold('TBD')});
-			tableKPI.addRow({'KPI1':kpiLabel("sv"), 'Value1': bold(release.getScheduleVariance()),'KPI2':kpiLabel("da"), 'Value2':bold('TBD')});
-			tableKPI.addRow({'KPI1':kpiLabel("ev"), 'Value1':bold(release.getEstimateVariance()),'KPI2':kpiLabel("mtr"), 'Value2':bold('TBD')});
-			tableKPI.addRow({'KPI1':kpiLabel("qu"), 'Value1':bold(release.getQuality())});
-			tableKPI.display(tableDiv);
-			createToolTips();
-			hideSpinner();
-		}
+			    return formatNumber(mod(variance) * 100) + '%&nbsp;&nbsp;&nbsp;(' + overUnder + ')';
+                };
+                this.getQuality = function () {
+                    return "TBD";
+                };
+                this.getWeightedDefectDensity = function () {
+                    return "TBD";
+                };
+            }
 
-		function kpiLabel(kpi){
-			var tip = '<span id="'+kpi+'" style="background-color:#026cfd;display: inline-block; width:15px;height:15px;margin-left:10px;color:white;text-align:center;">?</span>'
-			return bold(kpiMap[kpi][0])+tip;
-		}
- 		function createToolTips(){
-			for(kpi in kpiMap){
-				var tooltip = new rally.sdk.ui.basic.Tooltip({
-					message: kpiMap[kpi][1],
-					position: "after"
-				});
-				tooltip.display(kpi);
-			}
-		}
-		function onLoad() {
-    		showSpinner();
-			rally.sdk.ui.AppHeader.setHelpUrl("http://www.google.com");
-			rally.sdk.ui.AppHeader.showMessage("info", "This app works best in Firefox browser");
+            function kpiLabel(kpi) {
+                var tip = '<span id="' + kpi + '" style="background-color:#026cfd;display: inline-block; width:15px;height:15px;margin-left:10px;color:white;text-align:center;">?<span/>';
+                return bold(kpiMap[kpi][0]) + tip;
+            }
+
+            function createToolTips() {
+                for (kpi in kpiMap) {
+                    var tooltip = new rally.sdk.ui.basic.Tooltip({
+                        message: kpiMap[kpi][1],
+                        position: "after"
+                    });
+                    tooltip.display(kpi);
+                }
+            }
 
 
-			rallyDataSource = new rally.sdk.data.RallyDataSource('__WORKSPACE_OID__',
-                                                              '__PROJECT_OID__',
-                                                              '__PROJECT_SCOPING_UP__',
-                                                             '__PROJECT_SCOPING_DOWN__');
-			var projectDropdown = new rally.sdk.ui.ObjectDropdown({
-                 type : "Project",
-                 attribute: "Name",
-				 order:"Name",
-				 label:"Select a project"}, rallyDataSource);
-			projectDropdown.display("projectDiv", projectChanged);
-		}
+            function displayKPI(release) {
+                var tableDiv = document.getElementById("tableKPIDiv");
+                tableDiv.innerHTML = '<br/><b><span style="font-size:1.2em;padding:2px;">KPIs for Release: ' + release.name + '<span/><b/> <br/><br/>';
+                var tableConfig = {
+                    columns: [{
+                        key: 'KPI1',
+                        header: 'KPI'
+                    }, {
+                        key: 'Value1',
+                        header: 'Value'
+                    }, {
+                        key: 'KPI2',
+                        header: 'KPI'
+                    }, {
+                        key: 'Value2',
+                        header: 'Value'
+                    }],
+                    width: 800
+                };
+                tableKPI = new rally.sdk.ui.Table(tableConfig);
+                tableKPI.addRow({
+                    'KPI1': kpiLabel("tu"),
+                    'Value1': bold(release.getUtilization()),
+                    'KPI2': kpiLabel("wdd"),
+                    'Value2': bold(release.getWeightedDefectDensity())
+                });
+                tableKPI.addRow({
+                    'KPI1': kpiLabel("tp"),
+                    'Value1': bold(release.getProductivity()),
+                    'KPI2': kpiLabel("otdi"),
+                    'Value2': bold('TBD')
+                });
+                tableKPI.addRow({
+                    'KPI1': kpiLabel("sv"),
+                    'Value1': bold(release.getScheduleVariance()),
+                    'KPI2': kpiLabel("da"),
+                    'Value2': bold('TBD')
+                });
+                tableKPI.addRow({
+                    'KPI1': kpiLabel("ev"),
+                    'Value1': bold(release.getEstimateVariance()),
+                    'KPI2': kpiLabel("mtr"),
+                    'Value2': bold('TBD')
+                });
+                tableKPI.addRow({
+                    'KPI1': kpiLabel("qu"),
+                    'Value1': bold(release.getQuality())
+                });
+                tableKPI.display(tableDiv);
+                createToolTips();
+                hideSpinner();
+            }
 
-		function cleanUpAll(){
-			cleanUp(table);
-			cleanUp(releaseDropdown);
-		}
-		function cleanUp(obj){
-			document.getElementById("tableKPIDiv").innerHTML = "";
-			document.getElementById("tableDiv").innerHTML = "";
-			try{
-				if(obj){
-					obj.destroy();
-				}
-			}catch(err){}
-		}
-		function bold(text){
-			return '<b>' + text + '</b>';
-		}
-		function formatNumber(num){
-			return num.toFixed(1);
-		}
-		function formatDate(date){
-			if(date == ""){
-				return date;
-			}
-			return rally.sdk.util.DateTime.format(date, "dd-MMM-yyyy");
-		}
-		function padspaces(text, numspaces){
-			for(var i=0;i<numspaces;i++){
-				text='&nbsp;'+text;
-			}
-			return text;
-		}
-		function log(text){
-			document.getElementById('log').innerHTML+=text + '<br>';
-		}
-	    var waiter;
-		var spinneron = false;
-	    function hideSpinner() {
-	    	waiter.hide();
-	    	spinneron = false;
-	    }
-		function showSpinner() {
-			if(!spinneron){
-	        	waiter = new rally.sdk.ui.basic.Wait({hideTarget: false});
-	         	waiter.display("div1");
-	         	spinneron = true;
-			}
-	       }
-		rally.addOnLoad(onLoad);
-		 
-    </script>
-</head>
-<body>
-	<div style="min-height:500px;border: #000 1px dashed;padding:10px;" id="div1">
-	<div id="projectDiv"></div>
-	<div id="releaseDiv"></div>
-	<br/>
-	<div id="KPIHeader"></div>
-	<div id="tableKPIDiv"></div>
-	<br/>
-	<div id="tableDiv"></div>
-	<div id="log"></div>
+            function display(release) {
+                var tableDiv = document.getElementById("tableDiv");
+                tableDiv.innerHTML = '<br/><b><span style="font-size:1.2em;padding:2px;">Data used to determine KPIs<span/><b/> <br/><br/>';
+                var tableConfig = {
+                    columns: [{
+                        key: 'Release',
+                        header: 'Release',
+                        width: '300'
+                    }, {
+                        key: 'Planned',
+                        header: 'Planned <br/> [Start date, End date]'
+                    }, {
+                        key: 'Actual',
+                        header: 'Actual <br/> [Start date, End date]'
+                    }, {
+                        key: 'Effort',
+                        header: 'Effort (Hours) <br/> [Estimated, Actual]'
+                    }, {
+                        key: 'TeamCapacity',
+                        header: 'Team capacity <br/>[Hours, Story Points]'
+                    }, {
+                        key: 'StoryPoints',
+                        header: 'Story points <br/>[Commit, Deliver]'
+                    }]
+                };
+                table = new rally.sdk.ui.Table(tableConfig);
+                table.addRow({
+                    'Release': bold(release.name),
+                    'Planned': bold(formatDate(release.plannedStartDate) + ', ' + formatDate(release.plannedEndDate)),
+                    'Actual': bold(formatDate(release.actualStartDate) + ', ' + formatDate(release.actualEndDate)),
+                    'Effort': bold(release.getEstimatedEffort() + ', ' + release.getActualEffort()),
+                    'TeamCapacity': bold(release.capacity + ', ' + formatNumber(release.capacityInStoryPoints())),
+                    'StoryPoints': bold(release.estimatedStoryPoints + ', ' + release.deliveredStoryPoints)
+                });
+                for (key in release.iterations) {
+                    var iteration = release.iterations[key];
+                    table.addRow({
+                        'Release': padspaces(iteration.name, 10),
+                        'Planned': '',
+                        'Actual': formatDate(iteration.actualStartDate) + ', ' + formatDate(iteration.actualEndDate),
+                        'Effort': iteration.getEstimatedEffort() + ', ' + iteration.getActualEffort(),
+                        'TeamCapacity': iteration.capacity + ', ' + formatNumber(iteration.capacityInStoryPoints()),
+                        'StoryPoints': iteration.estimatedStoryPoints + ', ' + iteration.deliveredStoryPoints
+                    });
+                }
+                table.display(tableDiv);
 
-	</div>
-</body>
+                displayKPI(release);
+            }
+            function findPlannedDateForRelease(dateType, revisionHistory, defaultValue){
+                var minRevNum = 1000000;
+                var plannedDate = defaultValue;
+		    for (var i = 0; i < revisionHistory.length; i++) {
+			var desc = revisionHistory[i].Description;
+			var revNum = revisionHistory[i].RevisionNumber;
+			var index = desc.indexOf(dateType + ' changed from ');
+			if (index >= 0) {
+			    if (revNum < minRevNum) {
+				minRevNum = revNum;
+				plannedDate = desc.substring(desc.indexOf('[', index) + 1, desc.indexOf(']', index));
+			    }
+			}
+		    }
+		    return plannedDate;
+            }
+            function findPlannedAndActualDatesForRelease(obj) {
+                var queryConfig = {
+                    type: 'Release.RevisionHistory.Revisions',
+                    key: 'revisions',
+                    query: '(ObjectID = "' + obj.ObjectID + '")',
+                    fetch: 'Revision,Description,RevisionNumber',
+                    pagesize: 20000,
+                    order: 'RevisionNumber desc'
+                };
+                rallyDataSource.findAll(queryConfig, function (results) {
+	                objRelease.actualStartDate = obj.ReleaseStartDate;
+	                objRelease.actualEndDate = obj.ReleaseDate;
+	                objRelease.plannedStartDate = findPlannedDateForRelease('RELEASE START DATE',results.revisions,obj.ReleaseStartDate);
+                	objRelease.plannedEndDate = findPlannedDateForRelease('RELEASE DATE',results.revisions, obj.ReleaseDate);
+                    });
+            }
+
+            function processResults(results) {
+                for (property in results) {
+                    if (property == 'post_production_defects') {
+                        for (var i = 0; i < results[property].length; i++) {
+                            objRelease.postProductionDefectsEffortActual += results[property][i].TaskActualTotal;
+                        }
+                    } else {
+                        var artifact;
+                        for (var j = 0; j < results[property].length; j++) {
+                            artifact = results[property][j];
+                            var iterationName = "No Iteration Assigned";
+                            var iterationObjectID = artifact.Iteration?artifact.Iteration.ObjectID:"xxxxxxxxxxxxxxxxxxx";
+                            var iterationStartDate = "";
+                            var iterationEndDate = "";
+                            var iterationCapacity = 0;
+                            var iteration = objRelease.iterations[iterationObjectID];
+                            if (!iteration) {
+	                            if (artifact.Iteration) {
+	                            	iterationName = artifact.Iteration.Name;
+	                            	iterationObjectID = artifact.Iteration.ObjectID;
+	                            	iterationStartDate = artifact.Iteration.StartDate;
+	                            	iterationEndDate = artifact.Iteration.EndDate;
+	                            	for (var k = 0; k < artifact.Iteration.UserIterationCapacities.length; k++) {
+                                        	var uCap = artifact.Iteration.UserIterationCapacities[k];
+                                        	iterationCapacity += uCap.Capacity;
+                                        }
+                                    }
+                                    iteration = new LineItem(iterationName, iterationObjectID);
+	                            iteration.actualStartDate = iterationStartDate;
+	                            iteration.actualEndDate = iterationEndDate;
+	                            iteration.capacity = iterationCapacity;
+	                            objRelease.iterations[iterationObjectID] = iteration;
+	                            objRelease.capacity += iterationCapacity;
+                            }
+                            iteration.estimatedEffort += artifact.TaskEstimateTotal;
+                            iteration.actualEffort += artifact.TaskActualTotal;
+                            iteration.estimatedStoryPoints += artifact.PlanEstimate;
+                            objRelease.estimatedEffort += artifact.TaskEstimateTotal;
+                            objRelease.actualEffort += artifact.TaskActualTotal;
+                            objRelease.estimatedStoryPoints += artifact.PlanEstimate;
+                            if(isClosed(artifact.ScheduleState)){
+	                    	objRelease.deliveredStoryPoints += artifact.PlanEstimate;
+                            }
+                        }
+                    }
+                }
+                display(objRelease);
+            }
+
+            function calculateKPIsForRelease(objRelease) {
+                var queryConfig = [];
+                queryConfig[0] = {
+                    type: 'hierarchicalrequirement',
+                    key: 'stories',
+                    query: '(Release.ObjectId = "' + objRelease.objectId	 + '")',
+//                    query: '((((ScheduleState = Completed) OR(ScheduleState = Accepted)) OR (ScheduleState = Closed)) AND (Release.ObjectId = "' + objRelease.objectId	 + '"))',
+                    fetch: 'Name,TaskActualTotal,TaskEstimateTotal,PlanEstimate,ScheduleState,Iteration,Name,ObjectID,StartDate,EndDate,UserIterationCapacities,Capacity',
+                    pagesize: 20000,
+                    order: "AcceptedDate desc"
+                };
+                queryConfig[1] = {
+                    type: 'defect',
+                    key: 'defects',
+                    query: '((ScheduleState = Closed) AND (Release.ObjectId = "' + objRelease.objectId + '"))',
+                    fetch: 'Name,TaskActualTotal,TaskEstimateTotal,PlanEstimate,Iteration,Name,ObjectID,StartDate,EndDate,UserIterationCapacities,Capacity',
+                    pagesize: 20000,
+                    order: "AcceptedDate desc"
+                };
+                queryConfig[2] = {
+                    type: 'defect',
+                    key: 'post_production_defects',
+                    query: '((Environment = "Post-Production") AND (Release.ObjectId = "' + objRelease.objectId + '"))',
+                    fetch: 'Name,TaskActualTotal',
+                    pagesize: 20000,
+                    order: "AcceptedDate desc"
+                };
+
+                rallyDataSource.findAll(queryConfig, processResults);
+            }
+
+            function releaseChanged(dropdown, eventArgs) {
+                showSpinner();
+                cleanUp(table);
+                cleanUp(tableKPI);
+                var selectedRelease = eventArgs.value;
+                rallyDataSource.getRallyObject(selectedRelease, function (obj) {
+                    objRelease = new LineItem(obj.Name, obj.ObjectID);
+                    findPlannedAndActualDatesForRelease(obj);
+                    calculateKPIsForRelease(objRelease);
+                });
+            }
+
+            function projectChanged(dropdown, eventArgs) {
+                showSpinner();
+                cleanUpAll();
+                var selectedProject = eventArgs.value;
+                rallyDataSource = new rally.sdk.data.RallyDataSource('__WORKSPACE_OID__',
+                rally.sdk.util.Ref.getOidFromRef(selectedProject), '__PROJECT_SCOPING_UP__', '__PROJECT_SCOPING_DOWN__');
+                releaseDropdown = new rally.sdk.ui.ObjectDropdown({
+                    type: "Release",
+                    label: "Select a release ",
+                    width: "300",
+                    order: "StartDate desc",
+                    attribute: "Name"
+                }, rallyDataSource);
+                releaseDropdown.display("releaseDiv", releaseChanged);
+            }
+
+
+
+            function onLoad() {
+                showSpinner();
+                rally.sdk.ui.AppHeader.setHelpUrl("http://www.google.com");
+                rally.sdk.ui.AppHeader.showMessage("info", "This app works best in Firefox browser");
+                rallyDataSource = new rally.sdk.data.RallyDataSource('__WORKSPACE_OID__', '__PROJECT_OID__', '__PROJECT_SCOPING_UP__', '__PROJECT_SCOPING_DOWN__');
+                var projectDropdown = new rally.sdk.ui.ObjectDropdown({
+                    type: "Project",
+                    attribute: "Name",
+                    order: "Name",
+                    label: "Select a project"
+                }, rallyDataSource);
+                projectDropdown.display("projectDiv", projectChanged);
+            }
+
+            function log(text) {
+                document.getElementById('log').innerHTML += text + '<br>';
+            }
+            rally.addOnLoad(onLoad);
+        </script>
+    </head>
+    
+    <body>
+        <div style="min-height:500px;border: #000 1px dashed;padding:10px;" id="div1">
+            <div id="projectDiv"></div>
+            <div id="releaseDiv"></div>
+            <br/>
+            <div id="KPIHeader"></div>
+            <div id="tableKPIDiv"></div>
+            <br/>
+            <div id="tableDiv"></div>
+            <div id="log"></div>
+        </div>
+    </body>
+
 </html>
