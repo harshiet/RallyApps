@@ -28,14 +28,13 @@
             var productiveHrsPerDay = 6;
             var kpiMap = {};
             kpiMap.tu = ['Team Utilization', 'Actual Hours Spent / Total Team Capacity in Hours'];
-            kpiMap.tp = ['Team Productivity', 'Number of Story Points Delivered / Number of Story Points Committed	'];
-            kpiMap.sv = ['Schedule Variance', '[(Actual Completion Date – Actual Start Date) / (Planned Completion Date – Planned Start Date)] - 1'];
+            kpiMap.tp = ['Team Productivity', 'Number of Story Points Delivered / Number of Story Points Committed'];
+            kpiMap.sv = ['Schedule Variance', '[(Actual Completion Date - Actual Start Date) / (Planned Completion Date – Planned Start Date)] - 1'];
             kpiMap.ev = ['Estimate Variance', '1 – (Actual Effort / Estimated Effort )'];
-            kpiMap.qu = ['Quality', '1- (Actual effort spent on Post-Production defects/Total Actual Release Effort)'];
-            kpiMap.wdd = ['Weighted Defect Density', '(Critical Defects Effort * 5 + High Defects * 3 + Medium Defects * 2 + Low Defects * 1) / Total Actual Release Effort'];
+            kpiMap.qau = ['QA Effectiveness', '1 - (Number of UAT + Post Production defects / Total defects found during release)'];
+            kpiMap.deve = ['Development Effectiveness', 'Total # of Release Defects / Number of Story Points delivered'];
+            kpiMap.ppq = ['Post-production Quality', 'Weighted Post-Production Defects / Total Actual Release Effort in Person weeks'];
             kpiMap.otdi = ['On Time Delivery Index', 'Total milestones delivered on time / Total milestones delivered'];
-            kpiMap.da = ['Defect Aging', 'Number of defects open for <1 week, 1-2 weeks, 2-4 weeks, >4 weeks'];
-            kpiMap.mtr = ['Mean Time to Resolve', 'Average of the effort spent in hours to fix bugs reported by partners in each of the following applicable categories - P1, P2, P3 and P4'];
             var waiter;
             var spinneron = false;
 
@@ -204,30 +203,26 @@
                 tableKPI.addRow({
                     'KPI1': kpiLabel("tu"),
                     'Value1': bold(release.getUtilization()),
-                    'KPI2': kpiLabel("wdd"),
+                    'KPI2': kpiLabel("qae"),
                     'Value2': bold(release.getWeightedDefectDensity())
                 });
                 tableKPI.addRow({
                     'KPI1': kpiLabel("tp"),
                     'Value1': bold(release.getProductivity()),
-                    'KPI2': kpiLabel("otdi"),
+                    'KPI2': kpiLabel("deve"),
                     'Value2': bold('TBD')
                 });
                 tableKPI.addRow({
                     'KPI1': kpiLabel("sv"),
                     'Value1': bold(release.getScheduleVariance()),
-                    'KPI2': kpiLabel("da"),
+                    'KPI2': kpiLabel("ppq"),
                     'Value2': bold('TBD')
                 });
                 tableKPI.addRow({
                     'KPI1': kpiLabel("ev"),
                     'Value1': bold(release.getEstimateVariance()),
-                    'KPI2': kpiLabel("mtr"),
+                    'KPI2': kpiLabel("otdi"),
                     'Value2': bold('TBD')
-                });
-                tableKPI.addRow({
-                    'KPI1': kpiLabel("qu"),
-                    'Value1': bold(release.getQuality())
                 });
                 tableKPI.display(tableDiv);
                 createToolTips();
@@ -372,7 +367,6 @@
                     type: 'hierarchicalrequirement',
                     key: 'stories',
                     query: '(Release.ObjectId = "' + objRelease.objectId	 + '")',
-//                    query: '((((ScheduleState = Completed) OR(ScheduleState = Accepted)) OR (ScheduleState = Closed)) AND (Release.ObjectId = "' + objRelease.objectId	 + '"))',
                     fetch: 'Name,TaskActualTotal,TaskEstimateTotal,PlanEstimate,ScheduleState,Iteration,Name,ObjectID,StartDate,EndDate,UserIterationCapacities,Capacity',
                     pagesize: 20000,
                     order: "AcceptedDate desc"
